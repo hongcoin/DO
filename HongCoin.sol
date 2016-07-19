@@ -56,9 +56,44 @@ contract TokenCreationInterface {
 
 contract GovernanceInterface {
     // define the governance of this organization and critical functions
-    function commence() returns (bool);
+    function kickoff(uint _fiscal) returns (bool);
     function harvest() returns (bool);
     function freezeFund() returns (bool);
     function issueManagementFee() returns (bool);
     function investProject() returns (bool);
+}
+
+
+contract ManagedAccountInterface {
+    address public owner;
+    bool public payOwnerOnly;
+    uint public accumulatedInput;
+
+    function payOut(address _recipient, uint _amount) returns (bool);
+
+    event PayOut(address indexed _recipient, uint _amount);
+}
+
+
+contract ManagedAccount is ManagedAccountInterface{
+
+    function ManagedAccount(address _owner, bool _payOwnerOnly) {
+        owner = _owner;
+        payOwnerOnly = _payOwnerOnly;
+    }
+
+    function() {
+        accumulatedInput += msg.value;
+    }
+
+    function payOut(address _recipient, uint _amount) returns (bool) {
+        if (msg.sender != owner || msg.value > 0 || (payOwnerOnly && _recipient != owner))
+            throw;
+        if (_recipient.call.value(_amount)()) {
+            PayOut(_recipient, _amount);
+            return true;
+        } else {
+            return false;
+        }
+    }
 }
