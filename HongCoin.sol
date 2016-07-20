@@ -633,7 +633,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
 
     function retrieveHongCoinReward(bool _toMembers) external noEther returns (bool _success) {
-        HongCoin dao = HongCoin(msg.sender);
+        HongCoin hongcoin = HongCoin(msg.sender);
 
         if ((rewardToken[msg.sender] * HongCoinRewardAccount.accumulatedInput()) /
             totalRewardToken < HongCoinPaidOut[msg.sender])
@@ -643,11 +643,11 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
             (rewardToken[msg.sender] * HongCoinRewardAccount.accumulatedInput()) /
             totalRewardToken - HongCoinPaidOut[msg.sender];
         if(_toMembers) {
-            if (!HongCoinRewardAccount.payOut(dao.rewardAccount(), reward))
+            if (!HongCoinRewardAccount.payOut(hongcoin.rewardAccount(), reward))
                 throw;
             }
         else {
-            if (!HongCoinRewardAccount.payOut(dao, reward))
+            if (!HongCoinRewardAccount.payOut(hongcoin, reward))
                 throw;
         }
         HongCoinPaidOut[msg.sender] += reward;
