@@ -5,4 +5,4 @@ The contracts are based on the collaborative works from community, to create and
 
 
 ### Code Structure
-[[https://github.com/cwlau/DO/blob/master/images/HongCoin_solidity.png|alt=HongCoin_solidity]]
+![My image](images/HongCoin_solidity.png)
