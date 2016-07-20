@@ -29,7 +29,7 @@ contract TokenInterface {
     function transfer(address _to, uint256 _amount) returns (bool success);
     function transferFrom(address _from, address _to, uint256 _amount) returns (bool success);
 
-    event Transfer(address indexed _from, address indexed _to, uint256 _amount);
+    event evTransfer(address indexed _from, address indexed _to, uint256 _amount);
 }
 
 
@@ -46,7 +46,7 @@ contract Token is TokenInterface {
         if (balances[msg.sender] >= _amount && _amount > 0) {
             balances[msg.sender] -= _amount;
             balances[_to] += _amount;
-            Transfer(msg.sender, _to, _amount);
+            evTransfer(msg.sender, _to, _amount);
             return true;
         } else {
            return false;
@@ -66,7 +66,7 @@ contract Token is TokenInterface {
             balances[_to] += _amount;
             balances[_from] -= _amount;
             allowed[_from][msg.sender] -= _amount;
-            Transfer(_from, _to, _amount);
+            evTransfer(_from, _to, _amount);
             return true;
         } else {
             return false;
@@ -83,7 +83,7 @@ contract ManagedAccountInterface {
 
     function payOut(address _recipient, uint _amount) returns (bool);
 
-    event PayOut(address indexed _recipient, uint _amount);
+    event evPayOut(address indexed _recipient, uint _amount);
 }
 
 
@@ -102,7 +102,7 @@ contract ManagedAccount is ManagedAccountInterface{
         if (msg.sender != owner || msg.value > 0 || (payOwnerOnly && _recipient != owner))
             throw;
         if (_recipient.call.value(_amount)()) {
-            PayOut(_recipient, _amount);
+            evPayOut(_recipient, _amount);
             return true;
         } else {
             return false;
@@ -133,9 +133,9 @@ contract TokenCreationInterface {
     function refund();
     function divisor() constant returns (uint divisor);
 
-    event FuelingToDate(uint value);
-    event CreatedToken(address indexed to, uint amount);
-    event Refund(address indexed to, uint value);
+    event evFuelingToDate(uint value);
+    event evCreatedToken(address indexed to, uint amount);
+    event evRefund(address indexed to, uint value);
 }
 
 
@@ -160,10 +160,10 @@ contract TokenCreation is TokenCreationInterface, Token {
             balances[_tokenHolder] += token;
             totalSupply += token;
             weiGiven[_tokenHolder] += msg.value;
-            CreatedToken(_tokenHolder, token);
+            evCreatedToken(_tokenHolder, token);
             if (totalSupply >= minTokensToCreate && !isFueled) {
                 isFueled = true;
-                FuelingToDate(totalSupply);
+                evFuelingToDate(totalSupply);
             }
             return true;
         }
@@ -178,7 +178,7 @@ contract TokenCreation is TokenCreationInterface, Token {
 
             // Execute refund
             if (msg.sender.call.value(weiGiven[msg.sender])()) {
-                Refund(msg.sender, weiGiven[msg.sender]);
+                evRefund(msg.sender, weiGiven[msg.sender]);
                 totalSupply -= balances[msg.sender];
                 balances[msg.sender] = 0;
                 weiGiven[msg.sender] = 0;
@@ -349,17 +349,17 @@ contract HongCoinInterface {
     function isBlocked(address _account) internal returns (bool);
     function unblockMe() returns (bool);
 
-    event ProposalAdded(
+    event evProposalAdded(
         uint indexed proposalID,
         address recipient,
         uint amount,
         bool newCurator,
         string description
     );
-    event Voted(uint indexed proposalID, bool position, address indexed voter);
-    event ProposalTallied(uint indexed proposalID, bool result, uint quorum);
-    event NewCurator(address indexed _newCurator);
-    event AllowedRecipientChanged(address indexed _recipient, bool _allowed);
+    event evVoted(uint indexed proposalID, bool position, address indexed voter);
+    event evProposalTallied(uint indexed proposalID, bool result, uint quorum);
+    event evNewCurator(address indexed _newCurator);
+    event evAllowedRecipientChanged(address indexed _recipient, bool _allowed);
 }
 
 // The HongCoin contract itself
@@ -468,7 +468,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
         sumOfProposalDeposits += msg.value;
 
-        ProposalAdded(
+        evProposalAdded(
             _proposalID,
             _recipient,
             _amount,
@@ -518,7 +518,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
             blocked[msg.sender] = _proposalID;
         }
 
-        Voted(_proposalID, _supportsProposal, msg.sender);
+        evVoted(_proposalID, _supportsProposal, msg.sender);
     }
 
 
@@ -605,7 +605,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         closeProposal(_proposalID);
 
         // Initiate event
-        ProposalTallied(_proposalID, _success, quorum);
+        evProposalTallied(_proposalID, _success, quorum);
     }
 
 
@@ -748,7 +748,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         if (msg.sender != curator)
             throw;
         allowedRecipients[_recipient] = _allowed;
-        AllowedRecipientChanged(_recipient, _allowed);
+        evAllowedRecipientChanged(_recipient, _allowed);
         return true;
     }
 
@@ -790,7 +790,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
     function createNewHongCoin(address _newCurator) internal returns (HongCoin _newHongCoin) {
-        NewCurator(_newCurator);
+        evNewCurator(_newCurator);
         return hongcoinCreator.createHongCoin(_newCurator, 0, 0, now + splitExecutionPeriod);
     }
 
