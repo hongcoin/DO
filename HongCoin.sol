@@ -843,9 +843,58 @@ contract HongCoin_Creator {
 contract GovernanceInterface {
     // define the governance of this organization and critical functions
     function kickoff(uint _fiscal) returns (bool);
+    function issueManagementFee() returns (bool);
     function harvest() returns (bool);
     function freezeFund() returns (bool);
-    function issueManagementFee() returns (bool);
-    function investProject() returns (bool);
+    function unFreezeFund() returns (bool);
+    function investProject(address _projectWallet) returns (bool);
+
+    event evKickoff(uint256 _fiscal);
+    event evIssueManagementFee();
+    event evFreezeFund();
+    event evUnFreezeFund();
 }
 
+
+contract Governance is GovernanceInterface {
+    modifier noEther() {if (msg.value > 0) throw; _}
+
+    function kickoff(
+        uint256 _fiscal
+    ) noEther returns (bool success) {
+        evKickoff(_fiscal);
+        return true;
+    }
+
+    function issueManagementFee() returns (bool success) {
+        // Send 2% Management fee to ManagementBody
+        return true;
+    }
+
+    function harvest() returns (bool success) {
+        // harvest for every token owner
+        return true;
+    }
+
+    function freezeFund() returns (bool success) {
+        // freezeFund
+        evFreezeFund();
+        return true;
+    }
+
+    function unFreezeFund() returns (bool success) {
+        // harvest for every token owner
+        evUnFreezeFund();
+        return true;
+    }
+
+    function investProject(
+        address _projectWallet
+    ) returns (bool success) {
+        // start investing a project
+
+        // send a fixed amount (1 barrel) to the project address
+
+        return true;
+    }
+}
