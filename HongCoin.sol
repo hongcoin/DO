@@ -217,20 +217,9 @@ contract TokenCreation is TokenCreationInterface, Token {
 
 
 contract HongCoinInterface {
+
     // we do not have grace period. Once the goal is reached, the fund is secured
-    // uint constant creationGracePeriod = 40 days;
-    uint constant minProposalDebatePeriod = 2 weeks;
 
-    // TODO: Confirm - do we need split?
-    uint constant minSplitDebatePeriod = 1 weeks;
-    uint constant splitExecutionPeriod = 27 days;
-
-    // TODO: Confirm the values below
-    uint constant quorumHalvingPeriod = 25 weeks;
-    uint constant executeProposalPeriod = 10 days;
-    // Denotes the maximum proposal deposit that can be given. It is given as
-    // a fraction of total Ether spent plus balance of the HongCoin
-    uint constant maxDepositDivisor = 100;
 
     // Proposals to spend the HongCoin's ether or to choose a new Curator
     Proposal[] public proposals;
@@ -256,6 +245,9 @@ contract HongCoinInterface {
     // uint sumOfProposalDeposits;
 
     HongCoin_Creator public hongcoinCreator;
+
+
+    // TODO remove the proposal part
 
     // A proposal with `newCurator == false` represents a transaction
     // to be issued by this HongCoin
@@ -320,14 +312,12 @@ contract HongCoinInterface {
     //     bool _newCurator
     // ) onlyTokenholders returns (uint _proposalID);
 
-    function executeProposal(
-        uint _proposalID,
-        bytes _transactionData
+    function executeProject(
+        address _projectWallet,
+        uint _amount
     ) returns (bool _success);
 
-    function newContract(address _newContract);
     function changeAllowedRecipients(address _recipient, bool _allowed) external returns (bool _success);
-    // function changeProposalDeposit(uint _proposalDeposit) external;
     function retrieveHongCoinReward(bool _toMembers) external returns (bool _success);
     function getMyReward() returns(bool _success);
     function withdrawRewardFor(address _account) internal returns (bool _success);
@@ -337,20 +327,10 @@ contract HongCoinInterface {
         address _to,
         uint256 _amount
     ) returns (bool success);
-    function halveMinQuorum() returns (bool _success);
-    function numberOfProposals() constant returns (uint _numberOfProposals);
-    function getNewHongCoinAddress(uint _proposalID) constant returns (address _newHongCoin);
     function isBlocked(address _account) internal returns (bool);
     function unblockMe() returns (bool);
 
-    event evProposalAdded(
-        uint indexed proposalID,
-        address recipient,
-        uint amount,
-        bool newCurator,
-        string description
-    );
-    event evProposalTallied(uint indexed proposalID, bool result, uint quorum);
+    event evProjectExecuted(address _projectWallet, uint _amount, bool result);
     event evNewCurator(address indexed _newCurator);
     event evAllowedRecipientChanged(address indexed _recipient, bool _allowed);
 }
@@ -404,182 +384,32 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
 
-    // function newProposal(
-    //     address _recipient,
-    //     uint _amount,
-    //     string _description,
-    //     bytes _transactionData,
-    //     uint _debatingPeriod,
-    //     bool _newCurator
-    // ) onlyTokenholders returns (uint _proposalID) {
 
-    //     // Sanity check
-    //     if (_newCurator && (
-    //         _amount != 0
-    //         || _transactionData.length != 0
-    //         || _recipient == curator
-    //         || msg.value > 0
-    //         || _debatingPeriod < minSplitDebatePeriod)) {
-    //         throw;
-    //     } else if (
-    //         !_newCurator
-    //         && (!isRecipientAllowed(_recipient) || (_debatingPeriod <  minProposalDebatePeriod))
-    //     ) {
-    //         throw;
-    //     }
-
-    //     if (_debatingPeriod > 8 weeks)
-    //         throw;
-
-    //     if (!isFueled
-    //         || now < closingTime
-    //         || (msg.value < proposalDeposit && !_newCurator)) {
-
-    //         throw;
-    //     }
-
-    //     if (now + _debatingPeriod < now) // prevents overflow
-    //         throw;
-
-    //     // to prevent a 51% attacker to convert the ether into deposit
-    //     if (msg.sender == address(this))
-    //         throw;
-
-    //     _proposalID = proposals.length++;
-    //     Proposal p = proposals[_proposalID];
-    //     p.recipient = _recipient;
-    //     p.amount = _amount;
-    //     p.description = _description;
-    //     p.proposalHash = sha3(_recipient, _amount, _transactionData);
-    //     p.votingDeadline = now + _debatingPeriod;
-    //     p.open = true;
-    //     //p.proposalPassed = False; // that's default
-    //     p.newCurator = _newCurator;
-    //     if (_newCurator)
-    //         p.splitData.length++;
-    //     p.creator = msg.sender;
-    //     p.proposalDeposit = msg.value;
-
-    //     sumOfProposalDeposits += msg.value;
-
-    //     evProposalAdded(
-    //         _proposalID,
-    //         _recipient,
-    //         _amount,
-    //         _newCurator,
-    //         _description
-    //     );
-    // }
-
-
-    function executeProposal(
-        uint _proposalID,
-        bytes _transactionData
+    function executeProject(
+        address _projectWallet,
+        uint _amount
     ) noEther returns (bool _success) {
-
-        Proposal p = proposals[_proposalID];
-
-        uint waitPeriod = p.newCurator
-            ? splitExecutionPeriod
-            : executeProposalPeriod;
-
-        // If we are over deadline and waiting period, assert proposal is closed
-        // if (p.open && now > p.votingDeadline + waitPeriod) {
-        //     closeProposal(_proposalID);
-        //     return;
-        // }
-
-        // Check if the proposal can be executed
-        if (now < p.votingDeadline  // has the voting deadline arrived?
-            // Have the votes been counted?
-            || !p.open
-            // Does the transaction code match the proposal?
-            || p.proposalHash != sha3(p.recipient, p.amount, _transactionData)) {
-
-            throw;
-        }
-
-        // If the curator removed the recipient from the whitelist, close the proposal
-        // in order to free the deposit and allow unblocking of voters
-        // if (!isRecipientAllowed(p.recipient)) {
-        //     closeProposal(_proposalID);
-        //     p.creator.send(p.proposalDeposit);
-        //     return;
-        // }
 
         bool proposalCheck = true;
 
-        if (p.amount > actualBalance())
+        if (_amount > actualBalance())
             proposalCheck = false;
 
-        uint quorum = p.yea + p.nay;
+        _success = true;
 
-        // require 53% for calling newContract()
-        if (_transactionData.length >= 4 && _transactionData[0] == 0x68
-            && _transactionData[1] == 0x37 && _transactionData[2] == 0xff
-            && _transactionData[3] == 0x1e
-            && quorum < minQuorum(actualBalance() + rewardToken[address(this)])) {
+        // only create reward tokens when ether is not sent to the HongCoin itself and
+        // related addresses. Proxy addresses should be forbidden by the curator.
+        if (_projectWallet != address(this) && _projectWallet != address(rewardAccount)
+            && _projectWallet != address(HongCoinRewardAccount)
+            && _projectWallet != address(extraBalance)
+            && _projectWallet != address(curator)) {
 
-                proposalCheck = false;
+            rewardToken[address(this)] += _amount;
+            totalRewardToken += _amount;
         }
-
-        if (quorum >= minQuorum(p.amount)) {
-            // if (!p.creator.send(p.proposalDeposit))
-            //     throw;
-
-            lastTimeMinQuorumMet = now;
-            // set the minQuorum to 20% again, in the case it has been reached
-            if (quorum > totalSupply / 5)
-                minQuorumDivisor = 5;
-        }
-
-        // Execute result
-        if (quorum >= minQuorum(p.amount) && p.yea > p.nay && proposalCheck) {
-            if (!p.recipient.call.value(p.amount)(_transactionData))
-                throw;
-
-            p.proposalPassed = true;
-            _success = true;
-
-            // only create reward tokens when ether is not sent to the HongCoin itself and
-            // related addresses. Proxy addresses should be forbidden by the curator.
-            if (p.recipient != address(this) && p.recipient != address(rewardAccount)
-                && p.recipient != address(HongCoinRewardAccount)
-                && p.recipient != address(extraBalance)
-                && p.recipient != address(curator)) {
-
-                rewardToken[address(this)] += p.amount;
-                totalRewardToken += p.amount;
-            }
-        }
-
-        // closeProposal(_proposalID);
 
         // Initiate event
-        evProposalTallied(_proposalID, _success, quorum);
-    }
-
-
-    // function closeProposal(uint _proposalID) internal {
-    //     Proposal p = proposals[_proposalID];
-    //     if (p.open)
-    //         sumOfProposalDeposits -= p.proposalDeposit;
-    //     p.open = false;
-    // }
-
-
-    function newContract(address _newContract){
-        if (msg.sender != address(this) || !allowedRecipients[_newContract]) return;
-        // move all ether
-        if (!_newContract.call.value(address(this).balance)()) {
-            throw;
-        }
-
-        //move all reward tokens
-        rewardToken[_newContract] += rewardToken[address(this)];
-        rewardToken[address(this)] = 0;
-        HongCoinPaidOut[_newContract] += HongCoinPaidOut[address(this)];
-        HongCoinPaidOut[address(this)] = 0;
+        evProjectExecuted(_projectWallet, _amount, _success);
     }
 
 
@@ -685,16 +515,6 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
 
-    // function changeProposalDeposit(uint _proposalDeposit) noEther external {
-    //     if (msg.sender != address(this) || _proposalDeposit > (actualBalance() + rewardToken[address(this)])
-    //         / maxDepositDivisor) {
-
-    //         throw;
-    //     }
-    //     proposalDeposit = _proposalDeposit;
-    // }
-
-
     function changeAllowedRecipients(address _recipient, bool _allowed) noEther external returns (bool _success) {
         if (msg.sender != curator)
             throw;
@@ -721,39 +541,6 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
 
-    function minQuorum(uint _value) internal constant returns (uint _minQuorum) {
-        // minimum of 20% and maximum of 53.33%
-        return totalSupply / minQuorumDivisor +
-            (_value * totalSupply) / (3 * (actualBalance() + rewardToken[address(this)]));
-    }
-
-
-    function halveMinQuorum() returns (bool _success) {
-        // this can only be called after `quorumHalvingPeriod` has passed or at anytime
-        // by the curator with a delay of at least `minProposalDebatePeriod` between the calls
-        if ((lastTimeMinQuorumMet < (now - quorumHalvingPeriod) || msg.sender == curator)
-            && lastTimeMinQuorumMet < (now - minProposalDebatePeriod)) {
-            lastTimeMinQuorumMet = now;
-            minQuorumDivisor *= 2;
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    function createNewHongCoin(address _newCurator) internal returns (HongCoin _newHongCoin) {
-        evNewCurator(_newCurator);
-        return hongcoinCreator.createHongCoin(_newCurator, 0, now + splitExecutionPeriod);
-    }
-
-    function numberOfProposals() constant returns (uint _numberOfProposals) {
-        // Don't count index 0. It's used by isBlocked() and exists from start
-        return proposals.length - 1;
-    }
-
-    function getNewHongCoinAddress(uint _proposalID) constant returns (address _newHongCoin) {
-        return proposals[_proposalID].splitData[0].newHongCoin;
-    }
 
     function isBlocked(address _account) internal returns (bool) {
         if (blocked[_account] == 0)
