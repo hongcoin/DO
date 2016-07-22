@@ -72,9 +72,12 @@ contract Token is TokenInterface {
             return false;
         }
     }
-
-
 }
+
+
+
+
+
 
 contract ManagedAccountInterface {
     address public owner;
@@ -246,8 +249,8 @@ contract HongCoinInterface {
     mapping (address => uint) public paidOut;
     mapping (address => uint) public blocked;
 
-    uint public proposalDeposit;
-    uint sumOfProposalDeposits;
+    // uint public proposalDeposit;
+    // uint sumOfProposalDeposits;
 
     HongCoin_Creator public hongcoinCreator;
 
@@ -274,7 +277,7 @@ contract HongCoinInterface {
         bytes32 proposalHash;
         // Deposit in wei the creator added when submitting their proposal. It
         // is taken from the msg.value of a newProposal call.
-        uint proposalDeposit;
+        // uint proposalDeposit;
         // True if this proposal is to assign a new Curator
         bool newCurator;
         // Data needed for splitting the HongCoin
@@ -305,26 +308,14 @@ contract HongCoinInterface {
     function () returns (bool success);
     function receiveEther() returns(bool);
 
-    function newProposal(
-        address _recipient,
-        uint _amount,
-        string _description,
-        bytes _transactionData,
-        uint _debatingPeriod,
-        bool _newCurator
-    ) onlyTokenholders returns (uint _proposalID);
-
-    function checkProposalCode(
-        uint _proposalID,
-        address _recipient,
-        uint _amount,
-        bytes _transactionData
-    ) constant returns (bool _codeChecksOut);
-
-    function vote(
-        uint _proposalID,
-        bool _supportsProposal
-    ) onlyTokenholders returns (uint _voteID);
+    // function newProposal(
+    //     address _recipient,
+    //     uint _amount,
+    //     string _description,
+    //     bytes _transactionData,
+    //     uint _debatingPeriod,
+    //     bool _newCurator
+    // ) onlyTokenholders returns (uint _proposalID);
 
     function executeProposal(
         uint _proposalID,
@@ -333,7 +324,7 @@ contract HongCoinInterface {
 
     function newContract(address _newContract);
     function changeAllowedRecipients(address _recipient, bool _allowed) external returns (bool _success);
-    function changeProposalDeposit(uint _proposalDeposit) external;
+    // function changeProposalDeposit(uint _proposalDeposit) external;
     function retrieveHongCoinReward(bool _toMembers) external returns (bool _success);
     function getMyReward() returns(bool _success);
     function withdrawRewardFor(address _account) internal returns (bool _success);
@@ -356,7 +347,6 @@ contract HongCoinInterface {
         bool newCurator,
         string description
     );
-    event evVoted(uint indexed proposalID, bool position, address indexed voter);
     event evProposalTallied(uint indexed proposalID, bool result, uint quorum);
     event evNewCurator(address indexed _newCurator);
     event evAllowedRecipientChanged(address indexed _recipient, bool _allowed);
@@ -374,7 +364,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     function HongCoin(
         address _curator,
         HongCoin_Creator _hongcoinCreator,
-        uint _proposalDeposit,
+        // uint _proposalDeposit,
         uint _minTokensToCreate,
         uint _closingTime,
         address _privateCreation
@@ -382,7 +372,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
         curator = _curator;
         hongcoinCreator = _hongcoinCreator;
-        proposalDeposit = _proposalDeposit;
+        // proposalDeposit = _proposalDeposit;
         rewardAccount = new ManagedAccount(address(this), false);
         HongCoinRewardAccount = new ManagedAccount(address(this), false);
         if (address(rewardAccount) == 0)
@@ -410,116 +400,72 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
 
-    function newProposal(
-        address _recipient,
-        uint _amount,
-        string _description,
-        bytes _transactionData,
-        uint _debatingPeriod,
-        bool _newCurator
-    ) onlyTokenholders returns (uint _proposalID) {
+    // function newProposal(
+    //     address _recipient,
+    //     uint _amount,
+    //     string _description,
+    //     bytes _transactionData,
+    //     uint _debatingPeriod,
+    //     bool _newCurator
+    // ) onlyTokenholders returns (uint _proposalID) {
 
-        // Sanity check
-        if (_newCurator && (
-            _amount != 0
-            || _transactionData.length != 0
-            || _recipient == curator
-            || msg.value > 0
-            || _debatingPeriod < minSplitDebatePeriod)) {
-            throw;
-        } else if (
-            !_newCurator
-            && (!isRecipientAllowed(_recipient) || (_debatingPeriod <  minProposalDebatePeriod))
-        ) {
-            throw;
-        }
+    //     // Sanity check
+    //     if (_newCurator && (
+    //         _amount != 0
+    //         || _transactionData.length != 0
+    //         || _recipient == curator
+    //         || msg.value > 0
+    //         || _debatingPeriod < minSplitDebatePeriod)) {
+    //         throw;
+    //     } else if (
+    //         !_newCurator
+    //         && (!isRecipientAllowed(_recipient) || (_debatingPeriod <  minProposalDebatePeriod))
+    //     ) {
+    //         throw;
+    //     }
 
-        if (_debatingPeriod > 8 weeks)
-            throw;
+    //     if (_debatingPeriod > 8 weeks)
+    //         throw;
 
-        if (!isFueled
-            || now < closingTime
-            || (msg.value < proposalDeposit && !_newCurator)) {
+    //     if (!isFueled
+    //         || now < closingTime
+    //         || (msg.value < proposalDeposit && !_newCurator)) {
 
-            throw;
-        }
+    //         throw;
+    //     }
 
-        if (now + _debatingPeriod < now) // prevents overflow
-            throw;
+    //     if (now + _debatingPeriod < now) // prevents overflow
+    //         throw;
 
-        // to prevent a 51% attacker to convert the ether into deposit
-        if (msg.sender == address(this))
-            throw;
+    //     // to prevent a 51% attacker to convert the ether into deposit
+    //     if (msg.sender == address(this))
+    //         throw;
 
-        _proposalID = proposals.length++;
-        Proposal p = proposals[_proposalID];
-        p.recipient = _recipient;
-        p.amount = _amount;
-        p.description = _description;
-        p.proposalHash = sha3(_recipient, _amount, _transactionData);
-        p.votingDeadline = now + _debatingPeriod;
-        p.open = true;
-        //p.proposalPassed = False; // that's default
-        p.newCurator = _newCurator;
-        if (_newCurator)
-            p.splitData.length++;
-        p.creator = msg.sender;
-        p.proposalDeposit = msg.value;
+    //     _proposalID = proposals.length++;
+    //     Proposal p = proposals[_proposalID];
+    //     p.recipient = _recipient;
+    //     p.amount = _amount;
+    //     p.description = _description;
+    //     p.proposalHash = sha3(_recipient, _amount, _transactionData);
+    //     p.votingDeadline = now + _debatingPeriod;
+    //     p.open = true;
+    //     //p.proposalPassed = False; // that's default
+    //     p.newCurator = _newCurator;
+    //     if (_newCurator)
+    //         p.splitData.length++;
+    //     p.creator = msg.sender;
+    //     p.proposalDeposit = msg.value;
 
-        sumOfProposalDeposits += msg.value;
+    //     sumOfProposalDeposits += msg.value;
 
-        evProposalAdded(
-            _proposalID,
-            _recipient,
-            _amount,
-            _newCurator,
-            _description
-        );
-    }
-
-
-    function checkProposalCode(
-        uint _proposalID,
-        address _recipient,
-        uint _amount,
-        bytes _transactionData
-    ) noEther constant returns (bool _codeChecksOut) {
-        Proposal p = proposals[_proposalID];
-        return p.proposalHash == sha3(_recipient, _amount, _transactionData);
-    }
-
-
-    function vote(
-        uint _proposalID,
-        bool _supportsProposal
-    ) onlyTokenholders noEther returns (uint _voteID) {
-
-        Proposal p = proposals[_proposalID];
-        if (p.votedYes[msg.sender]
-            || p.votedNo[msg.sender]
-            || now >= p.votingDeadline) {
-
-            throw;
-        }
-
-        if (_supportsProposal) {
-            p.yea += balances[msg.sender];
-            p.votedYes[msg.sender] = true;
-        } else {
-            p.nay += balances[msg.sender];
-            p.votedNo[msg.sender] = true;
-        }
-
-        if (blocked[msg.sender] == 0) {
-            blocked[msg.sender] = _proposalID;
-        } else if (p.votingDeadline > proposals[blocked[msg.sender]].votingDeadline) {
-            // this proposal's voting deadline is further into the future than
-            // the proposal that blocks the sender so make it the blocker
-            blocked[msg.sender] = _proposalID;
-        }
-
-        evVoted(_proposalID, _supportsProposal, msg.sender);
-    }
+    //     evProposalAdded(
+    //         _proposalID,
+    //         _recipient,
+    //         _amount,
+    //         _newCurator,
+    //         _description
+    //     );
+    // }
 
 
     function executeProposal(
@@ -532,11 +478,12 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         uint waitPeriod = p.newCurator
             ? splitExecutionPeriod
             : executeProposalPeriod;
+
         // If we are over deadline and waiting period, assert proposal is closed
-        if (p.open && now > p.votingDeadline + waitPeriod) {
-            closeProposal(_proposalID);
-            return;
-        }
+        // if (p.open && now > p.votingDeadline + waitPeriod) {
+        //     closeProposal(_proposalID);
+        //     return;
+        // }
 
         // Check if the proposal can be executed
         if (now < p.votingDeadline  // has the voting deadline arrived?
@@ -550,11 +497,11 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
         // If the curator removed the recipient from the whitelist, close the proposal
         // in order to free the deposit and allow unblocking of voters
-        if (!isRecipientAllowed(p.recipient)) {
-            closeProposal(_proposalID);
-            p.creator.send(p.proposalDeposit);
-            return;
-        }
+        // if (!isRecipientAllowed(p.recipient)) {
+        //     closeProposal(_proposalID);
+        //     p.creator.send(p.proposalDeposit);
+        //     return;
+        // }
 
         bool proposalCheck = true;
 
@@ -573,8 +520,8 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         }
 
         if (quorum >= minQuorum(p.amount)) {
-            if (!p.creator.send(p.proposalDeposit))
-                throw;
+            // if (!p.creator.send(p.proposalDeposit))
+            //     throw;
 
             lastTimeMinQuorumMet = now;
             // set the minQuorum to 20% again, in the case it has been reached
@@ -602,19 +549,19 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
             }
         }
 
-        closeProposal(_proposalID);
+        // closeProposal(_proposalID);
 
         // Initiate event
         evProposalTallied(_proposalID, _success, quorum);
     }
 
 
-    function closeProposal(uint _proposalID) internal {
-        Proposal p = proposals[_proposalID];
-        if (p.open)
-            sumOfProposalDeposits -= p.proposalDeposit;
-        p.open = false;
-    }
+    // function closeProposal(uint _proposalID) internal {
+    //     Proposal p = proposals[_proposalID];
+    //     if (p.open)
+    //         sumOfProposalDeposits -= p.proposalDeposit;
+    //     p.open = false;
+    // }
 
 
     function newContract(address _newContract){
@@ -734,14 +681,14 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
 
-    function changeProposalDeposit(uint _proposalDeposit) noEther external {
-        if (msg.sender != address(this) || _proposalDeposit > (actualBalance() + rewardToken[address(this)])
-            / maxDepositDivisor) {
+    // function changeProposalDeposit(uint _proposalDeposit) noEther external {
+    //     if (msg.sender != address(this) || _proposalDeposit > (actualBalance() + rewardToken[address(this)])
+    //         / maxDepositDivisor) {
 
-            throw;
-        }
-        proposalDeposit = _proposalDeposit;
-    }
+    //         throw;
+    //     }
+    //     proposalDeposit = _proposalDeposit;
+    // }
 
 
     function changeAllowedRecipients(address _recipient, bool _allowed) noEther external returns (bool _success) {
@@ -765,7 +712,8 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
     function actualBalance() constant returns (uint _actualBalance) {
-        return this.balance - sumOfProposalDeposits;
+        // return this.balance - sumOfProposalDeposits;
+        return this.balance;
     }
 
 
@@ -791,7 +739,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
     function createNewHongCoin(address _newCurator) internal returns (HongCoin _newHongCoin) {
         evNewCurator(_newCurator);
-        return hongcoinCreator.createHongCoin(_newCurator, 0, 0, now + splitExecutionPeriod);
+        return hongcoinCreator.createHongCoin(_newCurator, 0, now + splitExecutionPeriod);
     }
 
     function numberOfProposals() constant returns (uint _numberOfProposals) {
@@ -823,7 +771,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 contract HongCoin_Creator {
     function createHongCoin(
         address _curator,
-        uint _proposalDeposit,
+        // uint _proposalDeposit,
         uint _minTokensToCreate,
         uint _closingTime
     ) returns (HongCoin _newHongCoin) {
@@ -831,7 +779,7 @@ contract HongCoin_Creator {
         return new HongCoin(
             _curator,
             HongCoin_Creator(this),
-            _proposalDeposit,
+            // _proposalDeposit,
             _minTokensToCreate,
             _closingTime,
             msg.sender
@@ -843,6 +791,7 @@ contract HongCoin_Creator {
 contract GovernanceInterface {
     // define the governance of this organization and critical functions
     function kickoff(uint _fiscal) returns (bool);
+    function reserveToWallet() returns (bool);
     function issueManagementFee() returns (bool);
     function harvest() returns (bool);
     function freezeFund() returns (bool);
@@ -866,8 +815,12 @@ contract Governance is GovernanceInterface {
         return true;
     }
 
+    function reserveToWallet(address _reservedWallet) returns (bool success) {
+        // Send 8% for 4 years of Management fee to ReservedWallet
+        return true;
+    }
     function issueManagementFee() returns (bool success) {
-        // Send 2% Management fee to ManagementBody
+        // Send 2% of Management fee from ReservedWallet
         return true;
     }
 
