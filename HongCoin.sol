@@ -158,7 +158,7 @@ contract TokenCreation is TokenCreationInterface, Token {
         if (now < closingTime && msg.value > 0
             && (privateCreation == 0 || privateCreation == msg.sender)) {
 
-            uint token = (msg.value * 20) / divisor();
+            uint token = (msg.value * 100) / divisor();
             extraBalance.call.value(msg.value - token)();
             balances[_tokenHolder] += token;
             totalSupply += token;
@@ -190,22 +190,24 @@ contract TokenCreation is TokenCreationInterface, Token {
     }
 
     function divisor() constant returns (uint divisor) {
-        // ------------------------------------------------------------
-        // TODO
-        // This depends on the final Coin Creation Scheme of HongCoin
-        // ------------------------------------------------------------
+
+        // Quantity divisor model: based on total quantity of coins issued
+        // Temp: Price ranged from 1.0 to 1.04 Ether for 500 M HongCoin Tokens
 
         // The number of (base unit) tokens per wei is calculated
-        // as `msg.value` * 20 / `divisor`
-        // The fueling period starts with a 1:1 ratio
-        if (closingTime - 2 weeks > now) {
-            return 20;
-        // Followed by 10 days with a daily creation rate increase of 5%
-        } else if (closingTime - 4 days > now) {
-            return (20 + (now - (closingTime - 2 weeks)) / (1 days));
-        // The last 4 days there is a constant creation rate ratio of 1:1.5
+        // as `msg.value` * 100 / `divisor`
+
+        // TODO Fix the unit for totalSupply
+        if(totalSupply < 1000000){
+            return 100;
+        } else if (totalSupply < 2000000){
+            return 101;
+        } else if (totalSupply < 3000000){
+            return 102;
+        } else if (totalSupply < 4000000){
+            return 103;
         } else {
-            return 30;
+            return 104;
         }
     }
 }
@@ -215,7 +217,8 @@ contract TokenCreation is TokenCreationInterface, Token {
 
 
 contract HongCoinInterface {
-    uint constant creationGracePeriod = 40 days;
+    // we do not have grace period. Once the goal is reached, the fund is secured
+    // uint constant creationGracePeriod = 40 days;
     uint constant minProposalDebatePeriod = 2 weeks;
 
     // TODO: Confirm - do we need split?
@@ -388,7 +391,8 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
     function () returns (bool success) {
-        if (now < closingTime + creationGracePeriod && msg.sender != address(extraBalance))
+        // if condition met, we accept HongCoin purchases
+        if (!isFueled && msg.sender != address(extraBalance))
             return createTokenProxy(msg.sender);
         else
             return receiveEther();
