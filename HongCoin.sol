@@ -125,7 +125,7 @@ contract ManagedAccount is ManagedAccountInterface{
 
 contract TokenCreationInterface {
 
-    uint public closingTime;
+    // uint public closingTime;
     uint public minTokensToCreate;
     bool public isFueled;
     address public privateCreation;
@@ -139,24 +139,31 @@ contract TokenCreationInterface {
     event evFuelingToDate(uint value);
     event evCreatedToken(address indexed to, uint amount);
     event evRefund(address indexed to, uint value);
+
+    // TODO move below under GovernanceInterface
+    bool public isFundLocked;
+    event evLockFund();
+    event evUnlockFund();
 }
 
 
+// TODO   contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface
 contract TokenCreation is TokenCreationInterface, Token {
     function TokenCreation(
         uint _minTokensToCreate,
-        uint _closingTime,
+        // uint _closingTime,
         address _privateCreation) {
 
-        closingTime = _closingTime;
+        // closingTime = _closingTime;
         minTokensToCreate = _minTokensToCreate;
         privateCreation = _privateCreation;
         extraBalance = new ManagedAccount(address(this), true);
     }
 
     function createTokenProxy(address _tokenHolder) returns (bool success) {
-        if (now < closingTime && msg.value > 0
-            && (privateCreation == 0 || privateCreation == msg.sender)) {
+        // if (now < closingTime && msg.value > 0
+        //     && (privateCreation == 0 || privateCreation == msg.sender)) {
+        if(!isFundLocked &&  msg.value > 0){
 
             uint token = (msg.value * 100) / divisor();
             extraBalance.call.value(msg.value - token)();
@@ -174,7 +181,8 @@ contract TokenCreation is TokenCreationInterface, Token {
     }
 
     function refund() noEther {
-        if (now > closingTime && !isFueled) {
+        // define the refund condition
+        if (!isFundLocked) {
             // Get extraBalance - will only succeed when called for the first time
             if (extraBalance.balance >= extraBalance.accumulatedInput())
                 extraBalance.payOut(address(this), extraBalance.accumulatedInput());
@@ -189,6 +197,31 @@ contract TokenCreation is TokenCreationInterface, Token {
         }
     }
 
+    // from GovernanceInterface
+    function lockFund() noEther returns (bool){
+        // only the creator can execute this function
+        if (msg.sender == address(this)){
+            // the bare minimum requirement for locking the fund
+            if(isFueled){
+                evLockFund();
+                isFundLocked = true;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // from GovernanceInterface
+    function unlockFund() noEther returns (bool){
+        // only the creator can execute this function
+        if (msg.sender == address(this)){
+            evUnlockFund();
+            isFundLocked = false;
+            return true;
+        }
+        return false;
+    }
+
     function divisor() constant returns (uint divisor) {
 
         // Quantity divisor model: based on total quantity of coins issued
@@ -197,14 +230,13 @@ contract TokenCreation is TokenCreationInterface, Token {
         // The number of (base unit) tokens per wei is calculated
         // as `msg.value` * 100 / `divisor`
 
-        // TODO Fix the unit for totalSupply
-        if(totalSupply < 1000000){
+        if(totalSupply < 100000000000000000000000000){ // 1eth(1000000000000000000) * 100M (100000000)
             return 100;
-        } else if (totalSupply < 2000000){
+        } else if (totalSupply < 200000000000000000000000000){
             return 101;
-        } else if (totalSupply < 3000000){
+        } else if (totalSupply < 300000000000000000000000000){
             return 102;
-        } else if (totalSupply < 4000000){
+        } else if (totalSupply < 400000000000000000000000000){
             return 103;
         } else {
             return 104;
@@ -220,14 +252,6 @@ contract HongCoinInterface {
 
     // we do not have grace period. Once the goal is reached, the fund is secured
 
-
-    // Proposals to spend the HongCoin's ether or to choose a new Curator
-    Proposal[] public proposals;
-    // The quorum needed for each proposal is partially calculated by
-    // totalSupply / minQuorumDivisor
-    uint public minQuorumDivisor;
-    uint public lastTimeMinQuorumMet;
-
     address public curator;
     mapping (address => bool) public allowedRecipients;
 
@@ -241,81 +265,15 @@ contract HongCoinInterface {
     mapping (address => uint) public paidOut;
     mapping (address => uint) public blocked;
 
-    // uint public proposalDeposit;
-    // uint sumOfProposalDeposits;
-
     HongCoin_Creator public hongcoinCreator;
 
 
-    // TODO remove the proposal part
-
-    // A proposal with `newCurator == false` represents a transaction
-    // to be issued by this HongCoin
-    // A proposal with `newCurator == true` represents a HongCoin split
-    struct Proposal {
-        // The address where the `amount` will go to if the proposal is accepted
-        // or if `newCurator` is true, the proposed Curator of
-        // the new HongCoin).
-        address recipient;
-        // The amount to transfer to `recipient` if the proposal is accepted.
-        uint amount;
-        // A plain text description of the proposal
-        string description;
-        // A unix timestamp, denoting the end of the voting period
-        uint votingDeadline;
-        // True if the proposal's votes have yet to be counted, otherwise False
-        bool open;
-        // True if quorum has been reached, the votes have been counted, and
-        // the majority said yes
-        bool proposalPassed;
-        // A hash to check validity of a proposal
-        bytes32 proposalHash;
-        // Deposit in wei the creator added when submitting their proposal. It
-        // is taken from the msg.value of a newProposal call.
-        // uint proposalDeposit;
-        // True if this proposal is to assign a new Curator
-        bool newCurator;
-        // Data needed for splitting the HongCoin
-        SplitData[] splitData;
-        // Number of Tokens in favor of the proposal
-        uint yea;
-        // Number of Tokens opposed to the proposal
-        uint nay;
-        // Simple mapping to check if a shareholder has voted for it
-        mapping (address => bool) votedYes;
-        // Simple mapping to check if a shareholder has voted against it
-        mapping (address => bool) votedNo;
-        // Address of the shareholder who created the proposal
-        address creator;
-    }
-
-    // Used only in the case of a newCurator proposal.
-    struct SplitData {
-        uint splitBalance;
-        uint totalSupply;
-        uint rewardToken;
-        HongCoin newHongCoin;
-    }
-
     // Used to restrict access to certain functions to only HongCoin Token Holders
-    modifier onlyTokenholders {}
+    // modifier onlyTokenholders {}
 
     function () returns (bool success);
     function receiveEther() returns(bool);
 
-    // function newProposal(
-    //     address _recipient,
-    //     uint _amount,
-    //     string _description,
-    //     bytes _transactionData,
-    //     uint _debatingPeriod,
-    //     bool _newCurator
-    // ) onlyTokenholders returns (uint _proposalID);
-
-    function executeProject(
-        address _projectWallet,
-        uint _amount
-    ) returns (bool _success);
 
     function changeAllowedRecipients(address _recipient, bool _allowed) external returns (bool _success);
     function retrieveHongCoinReward(bool _toMembers) external returns (bool _success);
@@ -327,44 +285,38 @@ contract HongCoinInterface {
         address _to,
         uint256 _amount
     ) returns (bool success);
-    function isBlocked(address _account) internal returns (bool);
-    function unblockMe() returns (bool);
 
     event evProjectExecuted(address _projectWallet, uint _amount, bool result);
-    event evNewCurator(address indexed _newCurator);
     event evAllowedRecipientChanged(address indexed _recipient, bool _allowed);
 }
+
+
 
 // The HongCoin contract itself
 contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
-    // Modifier that allows only shareholders to vote and create new proposals
-    modifier onlyTokenholders {
-        if (balanceOf(msg.sender) == 0) throw;
-            _
-    }
+    // Modifier that allows only shareholders to trigger
+    // modifier onlyTokenholders {
+    //     if (balanceOf(msg.sender) == 0) throw;
+    //         _
+    // }
 
     function HongCoin(
         address _curator,
         HongCoin_Creator _hongcoinCreator,
-        // uint _proposalDeposit,
         uint _minTokensToCreate,
-        uint _closingTime,
+        // uint _closingTime,
         address _privateCreation
-    ) TokenCreation(_minTokensToCreate, _closingTime, _privateCreation) {
+    ) TokenCreation(_minTokensToCreate, _privateCreation) {
 
         curator = _curator;
         hongcoinCreator = _hongcoinCreator;
-        // proposalDeposit = _proposalDeposit;
         rewardAccount = new ManagedAccount(address(this), false);
         HongCoinRewardAccount = new ManagedAccount(address(this), false);
         if (address(rewardAccount) == 0)
             throw;
         if (address(HongCoinRewardAccount) == 0)
             throw;
-        lastTimeMinQuorumMet = now;
-        minQuorumDivisor = 5; // sets the minimal quorum to 20%
-        proposals.length = 1; // avoids a proposal with ID 0 because it is used
 
         allowedRecipients[address(this)] = true;
         allowedRecipients[curator] = true;
@@ -377,7 +329,6 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         else
             return receiveEther();
     }
-
 
     function receiveEther() returns (bool) {
         return true;
@@ -454,9 +405,8 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
 
     function transfer(address _to, uint256 _value) returns (bool success) {
-        if (isFueled
-            && now > closingTime
-            && !isBlocked(msg.sender)
+        if (isFundLocked
+            // && now > closingTime
             && transferPaidOut(msg.sender, _to, _value)
             && super.transfer(_to, _value)) {
 
@@ -475,9 +425,8 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
 
     function transferFrom(address _from, address _to, uint256 _value) returns (bool success) {
-        if (isFueled
-            && now > closingTime
-            && !isBlocked(_from)
+        if (isFundLocked
+            // && now > closingTime
             && transferPaidOut(_from, _to, _value)
             && super.transferFrom(_from, _to, _value)) {
 
@@ -536,43 +485,22 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
     function actualBalance() constant returns (uint _actualBalance) {
-        // return this.balance - sumOfProposalDeposits;
         return this.balance;
-    }
-
-
-
-    function isBlocked(address _account) internal returns (bool) {
-        if (blocked[_account] == 0)
-            return false;
-        Proposal p = proposals[blocked[_account]];
-        if (now > p.votingDeadline) {
-            blocked[_account] = 0;
-            return false;
-        } else {
-            return true;
-        }
-    }
-
-    function unblockMe() returns (bool) {
-        return isBlocked(msg.sender);
     }
 }
 
 contract HongCoin_Creator {
     function createHongCoin(
         address _curator,
-        // uint _proposalDeposit,
-        uint _minTokensToCreate,
-        uint _closingTime
+        uint _minTokensToCreate
+        // uint _closingTime
     ) returns (HongCoin _newHongCoin) {
 
         return new HongCoin(
             _curator,
             HongCoin_Creator(this),
-            // _proposalDeposit,
             _minTokensToCreate,
-            _closingTime,
+            // _closingTime,
             msg.sender
         );
     }
@@ -580,65 +508,74 @@ contract HongCoin_Creator {
 
 
 contract GovernanceInterface {
+
+    bool public isFundLocked;
+
     // define the governance of this organization and critical functions
     function kickoff(uint _fiscal) returns (bool);
     function reserveToWallet() returns (bool);
     function issueManagementFee() returns (bool);
     function harvest() returns (bool);
-    function freezeFund() returns (bool);
-    function unFreezeFund() returns (bool);
-    function investProject(address _projectWallet) returns (bool);
+    function lockFund() returns (bool);
+    function unlockFund() returns (bool);
+    // function investProject(address _projectWallet) returns (bool);
+
+    function executeProject(
+        address _projectWallet,
+        uint _amount
+    ) returns (bool);
 
     event evKickoff(uint256 _fiscal);
     event evIssueManagementFee();
-    event evFreezeFund();
-    event evUnFreezeFund();
+    event evLockFund();
+    event evUnlockFund();
 }
 
 
-contract Governance is GovernanceInterface {
-    modifier noEther() {if (msg.value > 0) throw; _}
+// contract Governance is GovernanceInterface {
+//     modifier noEther() {if (msg.value > 0) throw; _}
 
-    function kickoff(
-        uint256 _fiscal
-    ) noEther returns (bool success) {
-        evKickoff(_fiscal);
-        return true;
-    }
+//     function kickoff(
+//         uint256 _fiscal
+//     ) noEther returns (bool success) {
+//         evKickoff(_fiscal);
+//         return true;
+//     }
 
-    function reserveToWallet(address _reservedWallet) returns (bool success) {
-        // Send 8% for 4 years of Management fee to ReservedWallet
-        return true;
-    }
-    function issueManagementFee() returns (bool success) {
-        // Send 2% of Management fee from ReservedWallet
-        return true;
-    }
+//     function reserveToWallet(address _reservedWallet) returns (bool success) {
+//         // Send 8% for 4 years of Management fee to ReservedWallet
+//         return true;
+//     }
+//     function issueManagementFee() returns (bool success) {
+//         // Send 2% of Management fee from ReservedWallet
+//         return true;
+//     }
 
-    function harvest() returns (bool success) {
-        // harvest for every token owner
-        return true;
-    }
+//     function harvest() returns (bool success) {
+//         // harvest for every token owner
+//         return true;
+//     }
 
-    function freezeFund() returns (bool success) {
-        // freezeFund
-        evFreezeFund();
-        return true;
-    }
+//     function freezeFund() returns (bool success) {
+//         // freezeFund
 
-    function unFreezeFund() returns (bool success) {
-        // harvest for every token owner
-        evUnFreezeFund();
-        return true;
-    }
+//         evFreezeFund();
+//         return true;
+//     }
 
-    function investProject(
-        address _projectWallet
-    ) returns (bool success) {
-        // start investing a project
+//     function unFreezeFund() returns (bool success) {
+//         // harvest for every token owner
+//         evUnFreezeFund();
+//         return true;
+//     }
 
-        // send a fixed amount (1 barrel) to the project address
+//     function investProject(
+//         address _projectWallet
+//     ) returns (bool success) {
+//         // start investing a project
 
-        return true;
-    }
-}
+//         // send a fixed amount (1 barrel) to the project address
+
+//         return true;
+//     }
+// }
