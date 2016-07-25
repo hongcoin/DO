@@ -140,15 +140,34 @@ contract TokenCreationInterface {
     event evCreatedToken(address indexed to, uint amount);
     event evRefund(address indexed to, uint value);
 
-    // TODO move below under GovernanceInterface
+}
+
+
+contract GovernanceInterface {
+
     bool public isFundLocked;
+
+    // define the governance of this organization and critical functions
+    function kickoff(uint _fiscal) returns (bool);
+    function reserveToWallet(address _reservedWallet) returns (bool);
+    function issueManagementFee(address _managementWallet, uint _amount) returns (bool);
+    // function harvest() returns (bool);
+    function lockFund() returns (bool);
+    function unlockFund() returns (bool);
+
+    function executeProject(
+        address _projectWallet,
+        uint _amount
+    ) returns (bool);
+
+    event evKickoff(uint256 _fiscal);
+    event evIssueManagementFee();
     event evLockFund();
     event evUnlockFund();
 }
 
 
-// TODO   contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface
-contract TokenCreation is TokenCreationInterface, Token {
+contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function TokenCreation(
         uint _minTokensToCreate,
         // uint _closingTime,
@@ -178,6 +197,18 @@ contract TokenCreation is TokenCreationInterface, Token {
             return true;
         }
         throw;
+    }
+
+
+    function kickoff(
+        uint256 _fiscal
+    ) noEther returns (bool success) {
+        // only the creator can execute this function
+        if (msg.sender == address(this)){
+            evKickoff(_fiscal);
+            return true;
+        }
+        return false;
     }
 
     function refund() noEther {
@@ -220,6 +251,16 @@ contract TokenCreation is TokenCreationInterface, Token {
             return true;
         }
         return false;
+    }
+
+
+    function reserveToWallet(address _reservedWallet) returns (bool success) {
+        // Send 8% for 4 years of Management fee to ReservedWallet
+        return true;
+    }
+    function issueManagementFee(address _managementWallet, uint _amount) returns (bool success) {
+        // Send 2% of Management fee from ReservedWallet
+        return true;
     }
 
     function divisor() constant returns (uint divisor) {
@@ -504,31 +545,6 @@ contract HongCoin_Creator {
             msg.sender
         );
     }
-}
-
-
-contract GovernanceInterface {
-
-    bool public isFundLocked;
-
-    // define the governance of this organization and critical functions
-    function kickoff(uint _fiscal) returns (bool);
-    function reserveToWallet() returns (bool);
-    function issueManagementFee() returns (bool);
-    function harvest() returns (bool);
-    function lockFund() returns (bool);
-    function unlockFund() returns (bool);
-    // function investProject(address _projectWallet) returns (bool);
-
-    function executeProject(
-        address _projectWallet,
-        uint _amount
-    ) returns (bool);
-
-    event evKickoff(uint256 _fiscal);
-    event evIssueManagementFee();
-    event evLockFund();
-    event evUnlockFund();
 }
 
 
