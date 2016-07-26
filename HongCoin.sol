@@ -357,7 +357,6 @@ contract HongCoinInterface {
     // we do not have grace period. Once the goal is reached, the fund is secured
 
     address public curator;
-    mapping (address => bool) public allowedRecipients;
 
     mapping (address => uint) public rewardToken;
     uint public totalRewardToken;
@@ -367,7 +366,6 @@ contract HongCoinInterface {
 
     mapping (address => uint) public HongCoinPaidOut;
     mapping (address => uint) public paidOut;
-    mapping (address => uint) public blocked;
 
     HongCoin_Creator public hongcoinCreator;
 
@@ -378,7 +376,7 @@ contract HongCoinInterface {
     function () returns (bool success);
 
 
-    function changeAllowedRecipients(address _recipient, bool _allowed) external returns (bool _success);
+    // function changeAllowedRecipients(address _recipient, bool _allowed) external returns (bool _success);
     function retrieveHongCoinReward(bool _toMembers) external returns (bool _success);
     function getMyReward() returns(bool _success);
     function withdrawRewardFor(address _account) internal returns (bool _success);
@@ -424,8 +422,6 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         if (address(HongCoinRewardAccount) == 0)
             throw;
 
-        allowedRecipients[address(this)] = true;
-        allowedRecipients[curator] = true;
     }
 
     function () returns (bool success) {
@@ -557,27 +553,6 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         paidOut[_from] -= transferPaidOut;
         paidOut[_to] += transferPaidOut;
         return true;
-    }
-
-
-    function changeAllowedRecipients(address _recipient, bool _allowed) noEther external returns (bool _success) {
-        if (msg.sender != curator)
-            throw;
-        allowedRecipients[_recipient] = _allowed;
-        evAllowedRecipientChanged(_recipient, _allowed);
-        return true;
-    }
-
-
-    function isRecipientAllowed(address _recipient) internal returns (bool _isAllowed) {
-        if (allowedRecipients[_recipient]
-            || (_recipient == address(extraBalance)
-                // only allowed when at least the amount held in the
-                // extraBalance account has been spent from the HongCoin
-                && totalRewardToken > extraBalance.accumulatedInput()))
-            return true;
-        else
-            return false;
     }
 
     function actualBalance() constant returns (uint _actualBalance) {
