@@ -127,7 +127,9 @@ contract TokenCreationInterface {
 
     // uint public closingTime;
     uint public minTokensToCreate;
-    bool public isFueled;
+    uint public maxTokensToCreate;
+    bool public isMinTokenReached;
+    bool public isMaxTokenReached;
     address public privateCreation;
     ManagedAccount public extraBalance;
     mapping (address => uint256) weiGiven;
@@ -170,30 +172,62 @@ contract GovernanceInterface {
 contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function TokenCreation(
         uint _minTokensToCreate,
+        uint _maxTokensToCreate,
         // uint _closingTime,
         address _privateCreation) {
 
         // closingTime = _closingTime;
         minTokensToCreate = _minTokensToCreate;
+        maxTokensToCreate = _maxTokensToCreate;
         privateCreation = _privateCreation;
         extraBalance = new ManagedAccount(address(this), true);
     }
 
     function createTokenProxy(address _tokenHolder) returns (bool success) {
-        // if (now < closingTime && msg.value > 0
-        //     && (privateCreation == 0 || privateCreation == msg.sender)) {
-        if(!isFundLocked &&  msg.value > 0){
+
+        if(isFundLocked){
+            // we refund the input
+            // TODO possibly there is some transaction cost for the refund
+            msg.sender.call.value(msg.value)();
+
+        } else if(msg.value > 0) {
 
             uint token = (msg.value * 100) / divisor();
-            extraBalance.call.value(msg.value - token)();
-            balances[_tokenHolder] += token;
-            totalSupply += token;
-            weiGiven[_tokenHolder] += msg.value;
-            evCreatedToken(_tokenHolder, token);
-            if (totalSupply >= minTokensToCreate && !isFueled) {
-                isFueled = true;
-                evFuelingToDate(totalSupply);
+
+            // if the value of maxTokensToCreate is reached (including current transaction)
+            if(totalSupply + token > maxTokensToCreate){
+                isMaxTokenReached = true;
+
+                // accept part of the fund, refund the remaining part
+                uint tokenToSupply = maxTokensToCreate - totalSupply;
+                uint fundToAccept = (msg.value * divisor() / 100 - tokenToSupply);
+
+                extraBalance.call.value(msg.value - tokenToSupply)();
+                balances[_tokenHolder] += tokenToSupply;
+                totalSupply += tokenToSupply;
+                weiGiven[_tokenHolder] += fundToAccept;
+                evCreatedToken(_tokenHolder, tokenToSupply);
+
+                // refund the remaining ether to the user
+                // TODO possibly there is some transaction cost for the refund
+                msg.sender.call.value(msg.value - fundToAccept)();
+
+                evLockFund();
+                isFundLocked = true;
+
+            } else {
+
+                extraBalance.call.value(msg.value - token)();
+                balances[_tokenHolder] += token;
+                totalSupply += token;
+                weiGiven[_tokenHolder] += msg.value;
+                evCreatedToken(_tokenHolder, token);
+                if (totalSupply >= minTokensToCreate && !isMinTokenReached) {
+                    isMinTokenReached = true;
+                    evFuelingToDate(totalSupply);
+                }
             }
+
             return true;
         }
         throw;
@@ -214,6 +248,8 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function refund() noEther {
         // define the refund condition
         if (!isFundLocked) {
+            // TODO possibly there is some transaction cost for the refund
+
             // Get extraBalance - will only succeed when called for the first time
             if (extraBalance.balance >= extraBalance.accumulatedInput())
                 extraBalance.payOut(address(this), extraBalance.accumulatedInput());
@@ -233,7 +269,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // only the creator can execute this function
         if (msg.sender == address(this)){
             // the bare minimum requirement for locking the fund
-            if(isFueled){
+            if(isMinTokenReached){
                 evLockFund();
                 isFundLocked = true;
                 return true;
@@ -255,11 +291,11 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
 
     function reserveToWallet(address _reservedWallet) returns (bool success) {
-        // Send 8% for 4 years of Management fee to ReservedWallet
+        // Send 8% for 4 years of Management fee to _reservedWallet
         return true;
     }
     function issueManagementFee(address _managementWallet, uint _amount) returns (bool success) {
-        // Send 2% of Management fee from ReservedWallet
+        // Send 2% of Management fee from _reservedWallet
         return true;
     }
 
@@ -313,7 +349,6 @@ contract HongCoinInterface {
     // modifier onlyTokenholders {}
 
     function () returns (bool success);
-    function receiveEther() returns(bool);
 
 
     function changeAllowedRecipients(address _recipient, bool _allowed) external returns (bool _success);
@@ -346,9 +381,10 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         address _curator,
         HongCoin_Creator _hongcoinCreator,
         uint _minTokensToCreate,
+        uint _maxTokensToCreate,
         // uint _closingTime,
         address _privateCreation
-    ) TokenCreation(_minTokensToCreate, _privateCreation) {
+    ) TokenCreation(_minTokensToCreate, _maxTokensToCreate, _privateCreation) {
 
         curator = _curator;
         hongcoinCreator = _hongcoinCreator;
@@ -364,17 +400,10 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
     function () returns (bool success) {
-        // if condition met, we accept HongCoin purchases
-        if (!isFueled && msg.sender != address(extraBalance))
-            return createTokenProxy(msg.sender);
-        else
-            return receiveEther();
-    }
 
-    function receiveEther() returns (bool) {
-        return true;
+        // We do not accept donation here. Any extra amount sent to us will be refunded
+        return createTokenProxy(msg.sender);
     }
-
 
 
     function executeProject(
@@ -382,22 +411,21 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         uint _amount
     ) noEther returns (bool _success) {
 
-        bool proposalCheck = true;
-
-        if (_amount > actualBalance())
-            proposalCheck = false;
-
         _success = true;
 
-        // only create reward tokens when ether is not sent to the HongCoin itself and
-        // related addresses. Proxy addresses should be forbidden by the curator.
-        if (_projectWallet != address(this) && _projectWallet != address(rewardAccount)
-            && _projectWallet != address(HongCoinRewardAccount)
-            && _projectWallet != address(extraBalance)
-            && _projectWallet != address(curator)) {
+        if (_amount > actualBalance()){
+            _success = false;
+        } else {
+            // only create reward tokens when ether is not sent to the HongCoin itself and
+            // related addresses. Proxy addresses should be forbidden by the curator.
+            if (_projectWallet != address(this) && _projectWallet != address(rewardAccount)
+                && _projectWallet != address(HongCoinRewardAccount)
+                && _projectWallet != address(extraBalance)
+                && _projectWallet != address(curator)) {
 
-            rewardToken[address(this)] += _amount;
-            totalRewardToken += _amount;
+                rewardToken[address(this)] += _amount;
+                totalRewardToken += _amount;
+            }
         }
 
         // Initiate event
@@ -533,7 +561,8 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 contract HongCoin_Creator {
     function createHongCoin(
         address _curator,
-        uint _minTokensToCreate
+        uint _minTokensToCreate,
+        uint _maxTokensToCreate
         // uint _closingTime
     ) returns (HongCoin _newHongCoin) {
 
@@ -541,6 +570,7 @@ contract HongCoin_Creator {
             _curator,
             HongCoin_Creator(this),
             _minTokensToCreate,
+            _maxTokensToCreate,
             // _closingTime,
             msg.sender
         );
