@@ -413,7 +413,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
         _success = false;
 
-        if (actualBalance() > _amount){
+        if (actualBalance() >= _amount){
             // only create reward tokens when ether is not sent to the HongCoin itself and
             // related addresses. Proxy addresses should be forbidden by the curator.
             if (_projectWallet != address(this) && _projectWallet != address(rewardAccount)
