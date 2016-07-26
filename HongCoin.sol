@@ -43,14 +43,15 @@ contract Token is TokenInterface {
     }
 
     function transfer(address _to, uint256 _amount) noEther returns (bool success) {
-        if (balances[msg.sender] >= _amount && _amount > 0) {
-            balances[msg.sender] -= _amount;
-            balances[_to] += _amount;
-            evTransfer(msg.sender, _to, _amount);
-            return true;
-        } else {
-           return false;
-        }
+        if (_amount <= 0) return false;
+        if (balances[msg.sender] < _amount) return false;
+        if (balances[_to] + _amount < balances[_to]) return false;
+
+        balances[msg.sender] -= _amount;
+        balances[_to] += _amount;
+        evTransfer(msg.sender, _to, _amount);
+
+        return true;
     }
 
     function transferFrom(
