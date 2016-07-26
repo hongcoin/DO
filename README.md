@@ -5,4 +5,7 @@ The contracts are based on the collaborative works from community, to create and
 
 
 ### Code Structure
-![My image](images/HongCoin_solidity.png)
+![Code Structure](images/HongCoin_solidity.png)
+
+### Flux of the money in Hong Coin
+![Flux of the money in Hong Coin](images/HongCoin_moneyFlow.png)
