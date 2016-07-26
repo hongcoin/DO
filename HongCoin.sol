@@ -126,7 +126,7 @@ contract ManagedAccount is ManagedAccountInterface{
 
 contract TokenCreationInterface {
 
-    // uint public closingTime;
+    uint public closingTime;
     uint public minTokensToCreate;
     uint public maxTokensToCreate;
     bool public isMinTokenReached;
@@ -149,6 +149,8 @@ contract TokenCreationInterface {
 contract GovernanceInterface {
 
     bool public isFundLocked;
+    bool public isDayThirtyChecked;
+    bool public isDaySixtyChecked;
 
     // define the governance of this organization and critical functions
     function kickoff(uint _fiscal) returns (bool);
@@ -174,10 +176,10 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function TokenCreation(
         uint _minTokensToCreate,
         uint _maxTokensToCreate,
-        // uint _closingTime,
+        uint _closingTime,
         address _privateCreation) {
 
-        // closingTime = _closingTime;
+        closingTime = _closingTime;
         minTokensToCreate = _minTokensToCreate;
         maxTokensToCreate = _maxTokensToCreate;
         privateCreation = _privateCreation;
@@ -226,6 +228,26 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
                 if (totalSupply >= minTokensToCreate && !isMinTokenReached) {
                     isMinTokenReached = true;
                     evFuelingToDate(totalSupply);
+                }
+            }
+
+            if(!isFundLocked){
+                if(closingTime > now){
+                    if(!isDayThirtyChecked){
+                        if(totalSupply >= minTokensToCreate){
+                            isFundLocked = true;
+                            evLockFund();
+                        }
+                        isDayThirtyChecked = true;
+                    }
+                }else if(closingTime + 30 days > now){
+                    if(!isDaySixtyChecked){
+                        if(totalSupply >= minTokensToCreate){
+                            isFundLocked = true;
+                            evLockFund();
+                        }
+                        isDaySixtyChecked = true;
+                    }
                 }
             }
 
@@ -383,9 +405,11 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         HongCoin_Creator _hongcoinCreator,
         uint _minTokensToCreate,
         uint _maxTokensToCreate,
-        // uint _closingTime,
+        // A variable to be set 30 days after contract execution.
+        // There is an extra 30-day period after this date for second round, if it failed to reach for the first deadline.
+        uint _closingTime,
         address _privateCreation
-    ) TokenCreation(_minTokensToCreate, _maxTokensToCreate, _privateCreation) {
+    ) TokenCreation(_minTokensToCreate, _maxTokensToCreate, _closingTime, _privateCreation) {
 
         curator = _curator;
         hongcoinCreator = _hongcoinCreator;
@@ -476,7 +500,6 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
     function transfer(address _to, uint256 _value) returns (bool success) {
         if (isFundLocked
-            // && now > closingTime
             && transferPaidOut(msg.sender, _to, _value)
             && super.transfer(_to, _value)) {
 
@@ -496,7 +519,6 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
     function transferFrom(address _from, address _to, uint256 _value) returns (bool success) {
         if (isFundLocked
-            // && now > closingTime
             && transferPaidOut(_from, _to, _value)
             && super.transferFrom(_from, _to, _value)) {
 
@@ -563,8 +585,8 @@ contract HongCoin_Creator {
     function createHongCoin(
         address _curator,
         uint _minTokensToCreate,
-        uint _maxTokensToCreate
-        // uint _closingTime
+        uint _maxTokensToCreate,
+        uint _closingTime
     ) returns (HongCoin _newHongCoin) {
 
         return new HongCoin(
@@ -572,7 +594,7 @@ contract HongCoin_Creator {
             HongCoin_Creator(this),
             _minTokensToCreate,
             _maxTokensToCreate,
-            // _closingTime,
+            _closingTime,
             msg.sender
         );
     }
