@@ -38,6 +38,10 @@ contract Token is TokenInterface {
     // inadvertently also transferred ether
     modifier noEther() {if (msg.value > 0) throw; _}
 
+    modifier onlyOwner {
+        if(msg.sender == address(this)) _
+    }
+
     function balanceOf(address _owner) constant returns (uint256 balance) {
         return balances[_owner];
     }
@@ -156,7 +160,7 @@ contract GovernanceInterface {
     function kickoff(uint _fiscal) returns (bool);
     function reserveToWallet(address _reservedWallet) returns (bool);
     function issueManagementFee(address _managementWallet, uint _amount) returns (bool);
-    // function harvest() returns (bool);
+    function harvest() returns (bool);
     function lockFund() returns (bool);
     function unlockFund() returns (bool);
 
@@ -167,6 +171,7 @@ contract GovernanceInterface {
 
     event evKickoff(uint256 _fiscal);
     event evIssueManagementFee();
+    event evHarvestFund(uint256 _amount);
     event evLockFund();
     event evUnlockFund();
 }
@@ -259,13 +264,9 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function kickoff(
         uint256 _fiscal
-    ) noEther returns (bool success) {
-        // only the creator can execute this function
-        if (msg.sender == address(this)){
-            evKickoff(_fiscal);
-            return true;
-        }
-        return false;
+    ) noEther onlyOwner returns (bool success) {
+        evKickoff(_fiscal);
+        return true;
     }
 
     function refund() noEther {
@@ -287,37 +288,40 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         }
     }
 
-    // from GovernanceInterface
-    function lockFund() noEther returns (bool){
-        // only the creator can execute this function
-        if (msg.sender == address(this)){
-            // the bare minimum requirement for locking the fund
-            if(isMinTokenReached){
-                evLockFund();
-                isFundLocked = true;
-                return true;
-            }
-        }
-        return false;
+    function harvest() noEther onlyOwner returns (bool){
+        // transfer all fund from HongCoin main account and HongCoinRewardAccount to harvestAccount
+
+        // reserve 20% of the fund to Management team
+
+        // remaining fund: token holder can claim starting from this point
+
+        // TODO set this the total amount harvested
+        evHarvestFund(1);
+        return true;
     }
 
-    // from GovernanceInterface
-    function unlockFund() noEther returns (bool){
-        // only the creator can execute this function
-        if (msg.sender == address(this)){
-            evUnlockFund();
-            isFundLocked = false;
+    function lockFund() noEther onlyOwner returns (bool){
+        // the bare minimum requirement for locking the fund
+        if(isMinTokenReached){
+            evLockFund();
+            isFundLocked = true;
             return true;
         }
         return false;
     }
 
+    function unlockFund() noEther onlyOwner returns (bool){
+        evUnlockFund();
+        isFundLocked = false;
+        return true;
+    }
 
-    function reserveToWallet(address _reservedWallet) returns (bool success) {
+
+    function reserveToWallet(address _reservedWallet) onlyOwner returns (bool success) {
         // Send 8% for 4 years of Management fee to _reservedWallet
         return true;
     }
-    function issueManagementFee(address _managementWallet, uint _amount) returns (bool success) {
+    function issueManagementFee(address _managementWallet, uint _amount) onlyOwner returns (bool success) {
         // Send 2% of Management fee from _reservedWallet
         return true;
     }
@@ -599,52 +603,3 @@ contract HongCoin_Creator {
         );
     }
 }
-
-
-// contract Governance is GovernanceInterface {
-//     modifier noEther() {if (msg.value > 0) throw; _}
-
-//     function kickoff(
-//         uint256 _fiscal
-//     ) noEther returns (bool success) {
-//         evKickoff(_fiscal);
-//         return true;
-//     }
-
-//     function reserveToWallet(address _reservedWallet) returns (bool success) {
-//         // Send 8% for 4 years of Management fee to ReservedWallet
-//         return true;
-//     }
-//     function issueManagementFee() returns (bool success) {
-//         // Send 2% of Management fee from ReservedWallet
-//         return true;
-//     }
-
-//     function harvest() returns (bool success) {
-//         // harvest for every token owner
-//         return true;
-//     }
-
-//     function freezeFund() returns (bool success) {
-//         // freezeFund
-
-//         evFreezeFund();
-//         return true;
-//     }
-
-//     function unFreezeFund() returns (bool success) {
-//         // harvest for every token owner
-//         evUnFreezeFund();
-//         return true;
-//     }
-
-//     function investProject(
-//         address _projectWallet
-//     ) returns (bool success) {
-//         // start investing a project
-
-//         // send a fixed amount (1 barrel) to the project address
-
-//         return true;
-//     }
-// }
