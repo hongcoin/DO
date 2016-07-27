@@ -1,6 +1,6 @@
 Hong Coin DO contracts
 ======================
-The contract is based on the white paper of HongCoin.org, and the collaborative works from community, to create and manage a blockchain-based fund across borders. Some legal and finance related details will be bonded not only in these contracts, but also bounded to ground jurisdiction linking to the management firm.
+The contract is based on the white paper of http://HongCoin.org, and the collaborative works from community, to create and manage a blockchain-based fund across borders. Some legal and finance related details will be bonded not only in these contracts, but also bounded to ground jurisdiction linking to the management firm.
 
 
 
