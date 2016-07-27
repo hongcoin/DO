@@ -135,7 +135,6 @@ contract TokenCreationInterface {
     uint public maxTokensToCreate;
     bool public isMinTokenReached;
     bool public isMaxTokenReached;
-    address public privateCreation;
     ManagedAccount public extraBalance;
     mapping (address => uint256) weiGiven;
 
@@ -145,38 +144,47 @@ contract TokenCreationInterface {
 
     event evFuelingToDate(uint value);
     event evCreatedToken(address indexed to, uint amount);
-    event evRefund(address indexed to, uint value);
+    event evRefund(address indexed to, uint value, bool result);
 
 }
 
 
 contract GovernanceInterface {
 
+    // The variable indicating whether the fund has achieved the inital goal or not.
+    // This value is automatically set, and CANNOT be reversed.
     bool public isFundLocked;
+
     bool public isDayThirtyChecked;
     bool public isDaySixtyChecked;
 
+    bool public isKickoffEnabled;
+    bool public isFreezeEnabled;
+    bool public isHarvestEnabled;
+    bool public isDistributionReady;
+
+
     // define the governance of this organization and critical functions
     function mgmtKickoff(uint _fiscal) returns (bool);
+
+    // TODO move this away: the progress should be automatically triggered inside mgmtKickoff(x)
     function reserveToWallet(address _reservedWallet) returns (bool);
+
     function mgmtIssueManagementFee(address _managementWallet, uint _amount) returns (bool);
     function mgmtDistribute() returns (bool);
-    // function lockFund() returns (bool);
-    // function unlockFund() returns (bool);
 
     function mgmtInvestProject(
         address _projectWallet,
         uint _amount
     ) returns (bool);
 
-    event evMgmtKickoff(uint256 _fiscal);
-    event evMgmtIssueManagementFee();
-    event evMgmtDistributed(uint256 _amount);
+    event evMgmtKickoff(uint256 _fiscal, bool _success);
+    event evMgmtIssueManagementFee(uint _amount, bool _success);
+    event evMgmtDistributed(uint256 _amount, bool _success);
+    event evMgmtInvestProject(address _projectWallet, uint _amount, bool result);
 
     // Triggered when the minTokensToCreate is reached
     event evLockFund();
-    // event evUnlockFund();
-    event evMgmtInvestProject(address _projectWallet, uint _amount, bool result);
 }
 
 
@@ -184,13 +192,11 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function TokenCreation(
         uint _minTokensToCreate,
         uint _maxTokensToCreate,
-        uint _closingTime,
-        address _privateCreation) {
+        uint _closingTime) {
 
         closingTime = _closingTime;
         minTokensToCreate = _minTokensToCreate;
         maxTokensToCreate = _maxTokensToCreate;
-        privateCreation = _privateCreation;
         extraBalance = new ManagedAccount(address(this), true);
     }
 
@@ -268,12 +274,12 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function mgmtKickoff(
         uint256 _fiscal
     ) noEther onlyOwner returns (bool success) {
-        evMgmtKickoff(_fiscal);
+        evMgmtKickoff(_fiscal, true);
         return true;
     }
 
     function refund() noEther {
-        // define the refund condition
+        // define the refund condition: only when the fund minTokensToCreate is not reached
         if (isFundLocked) {
             throw;
         }
@@ -285,7 +291,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // refund to the sender fails and we throw later on?  Or, what if this fails, can the sender ever
         // get a refund?
         if (extraBalance.balance >= extraBalance.accumulatedInput())
-           extraBalance.payOut(address(this), extraBalance.accumulatedInput());
+            extraBalance.payOut(address(this), extraBalance.accumulatedInput());
 
         // Always change state before calling the sender, throw if the call fails
         var tmpWeiGiven = weiGiven[msg.sender];
@@ -294,18 +300,22 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         weiGiven[msg.sender] = 0;
 
         if (msg.sender.call.value(tmpWeiGiven)()) {
-           evRefund(msg.sender, tmpWeiGiven);
+            evRefund(msg.sender, tmpWeiGiven, true);
         }
         else {
-           throw;
+            evRefund(msg.sender, tmpWeiGiven, false);
+            throw;
         }
     }
 
-    // function harvest() noEther returns (bool){
-    //     return false;
-    // }
-
     function mgmtDistribute() noEther onlyOwner returns (bool){
+
+        if(!isHarvestEnabled){
+            throw;
+        }
+        if(isDistributionReady){
+            throw;
+        }
         // transfer all balance from the following accounts
         // (1) HongCoin main account,
         // (2) ManagementFeePoolWallet,
@@ -313,37 +323,27 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // to ReturnAccount
 
         // reserve 20% of the fund to Management Body
+        // TODO
 
         // remaining fund: token holder can claim starting from this point
+        // TODO
+        isDistributionReady = true;
 
         // TODO set this the total amount harvested
-        evMgmtDistributed(100); // total fund,
+        evMgmtDistributed(100, true); // total fund,
         return true;
     }
 
-    // function lockFund() noEther onlyOwner returns (bool){
-    //     // the bare minimum requirement for locking the fund
-    //     if(isMinTokenReached){
-    //         evLockFund();
-    //         isFundLocked = true;
-    //         return true;
-    //     }
-    //     return false;
-    // }
-
-    // function unlockFund() noEther onlyOwner returns (bool){
-    //     evUnlockFund();
-    //     isFundLocked = false;
-    //     return true;
-    // }
-
-
     function reserveToWallet(address _reservedWallet) onlyOwner returns (bool success) {
         // Send 8% for 4 years of Management fee to _reservedWallet
+
+        // TODO move this away: the progress should be automatically triggered inside mgmtKickoff(x)
         return true;
     }
     function mgmtIssueManagementFee(address _managementWallet, uint _amount) onlyOwner returns (bool success) {
         // Send 2% of Management fee from _reservedWallet
+        // TODO
+        evMgmtIssueManagementFee(1, true);
         return true;
     }
 
@@ -384,10 +384,14 @@ contract HongCoinInterface {
     mapping (address => bool) public votedFreeze;
     mapping (address => bool) public votedHarvest;
 
+    uint256 public supportKickoffQuorum;
+    uint256 public supportFreezeQuorum;
+    uint256 public supportHarvestQuorum;
 
     mapping (address => uint) public rewardToken;
     uint public totalRewardToken;
 
+    // TODO Check the following ManagedAccount and mapping
     ManagedAccount public rewardAccount;
     ManagedAccount public HongCoinRewardAccount;
 
@@ -407,7 +411,9 @@ contract HongCoinInterface {
     function unFreeze() returns(bool _result);
     function harvest() returns(bool _result);
 
+    function collectReturn() returns(bool _success);
 
+    // TODO The following 5 functions may (not) be used for HongCoin's final implementation.
     function retrieveHongCoinReward(bool _toMembers) external returns (bool _success);
     function getMyReward() returns(bool _success);
     function withdrawRewardFor(address _account) internal returns (bool _success);
@@ -441,9 +447,8 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         uint _maxTokensToCreate,
         // A variable to be set 30 days after contract execution.
         // There is an extra 30-day period after this date for second round, if it failed to reach for the first deadline.
-        uint _closingTime,
-        address _privateCreation
-    ) TokenCreation(_minTokensToCreate, _maxTokensToCreate, _closingTime, _privateCreation) {
+        uint _closingTime
+    ) TokenCreation(_minTokensToCreate, _maxTokensToCreate, _closingTime) {
 
         curator = _curator;
         hongcoinCreator = _hongcoinCreator;
@@ -467,34 +472,101 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
      * Voting for some critial steps, on blockchain
      */
     function kickoff() onlyTokenholders noEther returns (bool _vote) {
+        // prevent duplicate voting from the same token holder
+        if(votedKickoff[msg.sender]){
+            throw;
+        }
+
         votedKickoff[msg.sender] = true;
         evVotedKickoff(true);
+
+        supportKickoffQuorum += balances[msg.sender];
+        if(supportKickoffQuorum * 4 > totalSupply){
+            isKickoffEnabled = true;
+        }
         return true;
     }
 
     function freeze() onlyTokenholders noEther returns (bool _vote){
+        // prevent duplicate voting from the same token holder
+        if(votedFreeze[msg.sender]){
+            throw;
+        }
+
         votedFreeze[msg.sender] = true;
         evVotedFreeze(true);
+
+        supportFreezeQuorum += balances[msg.sender];
+        if(supportFreezeQuorum * 2 > totalSupply){
+            isFreezeEnabled = true;
+
+            // TODO freeze immediately
+            // transfer all available fund to ReturnAccount
+
+            isDistributionReady = true;
+        }
         return true;
     }
 
     function unFreeze() onlyTokenholders noEther returns (bool _vote){
+        // prevent duplicate voting from the same token holder
+        if(!votedFreeze[msg.sender]){
+            throw;
+        }
+
         votedFreeze[msg.sender] = false;
         evVotedFreeze(false);
+
+        supportFreezeQuorum -= balances[msg.sender];
+        if(supportFreezeQuorum * 2 < totalSupply){
+            isFreezeEnabled = false;
+        }
         return false;
     }
 
     function harvest() onlyTokenholders noEther returns (bool _vote){
+        // Only call harvest() 3 Years after ICO ends
+        if(closingTime + 1095 days < now){
+            throw;
+        }
+
+        // prevent duplicate voting from the same token holder
+        if(votedHarvest[msg.sender]){
+            throw;
+        }
+
         votedHarvest[msg.sender] = true;
         evVotedHarvest(true);
+
+        supportHarvestQuorum += balances[msg.sender];
+        if(supportHarvestQuorum * 2 > totalSupply){
+            isHarvestEnabled = true;
+        }
         return true;
     }
 
+    function collectReturn() onlyTokenholders noEther returns (bool _success){
+
+        if(isDistributionReady){
+            // transfer all tokens in ReturnAccount back to Token Holder's account
+            // TODO
+
+            return true;
+        }else{
+            throw;
+        }
+
+    }
 
     function mgmtInvestProject(
         address _projectWallet,
         uint _amount
-    ) noEther returns (bool _success) {
+    ) noEther onlyOwner returns (bool _success) {
+
+        if(!isKickoffEnabled || isFreezeEnabled || isHarvestEnabled){
+            evMgmtInvestProject(_projectWallet, _amount, false);
+            throw;
+        }
 
         _success = false;
 
@@ -516,6 +588,9 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         // Initiate event
         evMgmtInvestProject(_projectWallet, _amount, _success);
     }
+
+
+
 
 
     function retrieveHongCoinReward(bool _toMembers) external noEther returns (bool _success) {
@@ -633,8 +708,7 @@ contract HongCoin_Creator {
             HongCoin_Creator(this),
             _minTokensToCreate,
             _maxTokensToCreate,
-            _closingTime,
-            msg.sender
+            _closingTime
         );
     }
 }
