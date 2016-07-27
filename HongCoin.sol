@@ -151,7 +151,10 @@ contract TokenCreationInterface {
 
 contract GovernanceInterface {
 
+    // The variable indicating whether the fund has achieved the inital goal or not.
+    // This value is automatically set, and CANNOT be reversed.
     bool public isFundLocked;
+
     bool public isDayThirtyChecked;
     bool public isDaySixtyChecked;
 
@@ -162,11 +165,11 @@ contract GovernanceInterface {
 
     // define the governance of this organization and critical functions
     function mgmtKickoff(uint _fiscal) returns (bool);
+
+    // TODO move this away: the progress should be automatically triggered inside mgmtKickoff(x)
     function reserveToWallet(address _reservedWallet) returns (bool);
     function mgmtIssueManagementFee(address _managementWallet, uint _amount) returns (bool);
     function mgmtDistribute() returns (bool);
-    // function lockFund() returns (bool);
-    // function unlockFund() returns (bool);
 
     function mgmtInvestProject(
         address _projectWallet,
@@ -179,7 +182,6 @@ contract GovernanceInterface {
 
     // Triggered when the minTokensToCreate is reached
     event evLockFund();
-    // event evUnlockFund();
     event evMgmtInvestProject(address _projectWallet, uint _amount, bool result);
 }
 
@@ -323,23 +325,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         evMgmtDistributed(100, true); // total fund,
         return true;
     }
-
-    // function lockFund() noEther onlyOwner returns (bool){
-    //     // the bare minimum requirement for locking the fund
-    //     if(isMinTokenReached){
-    //         evLockFund();
-    //         isFundLocked = true;
-    //         return true;
-    //     }
-    //     return false;
-    // }
-
-    // function unlockFund() noEther onlyOwner returns (bool){
-    //     evUnlockFund();
-    //     isFundLocked = false;
-    //     return true;
-    // }
-
 
     function reserveToWallet(address _reservedWallet) onlyOwner returns (bool success) {
         // Send 8% for 4 years of Management fee to _reservedWallet
@@ -522,7 +507,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
     function harvest() onlyTokenholders noEther returns (bool _vote){
         // Only call harvest() 3 Years after ICO ends
-        if(_closingTime + 1095 days < now){
+        if(closingTime + 1095 days < now){
             throw;
         }
 
