@@ -161,6 +161,7 @@ contract GovernanceInterface {
     bool public isKickoffEnabled;
     bool public isFreezeEnabled;
     bool public isHarvestEnabled;
+    bool public isDistributionReady;
 
 
     // define the governance of this organization and critical functions
@@ -168,6 +169,7 @@ contract GovernanceInterface {
 
     // TODO move this away: the progress should be automatically triggered inside mgmtKickoff(x)
     function reserveToWallet(address _reservedWallet) returns (bool);
+
     function mgmtIssueManagementFee(address _managementWallet, uint _amount) returns (bool);
     function mgmtDistribute() returns (bool);
 
@@ -179,10 +181,10 @@ contract GovernanceInterface {
     event evMgmtKickoff(uint256 _fiscal, bool _success);
     event evMgmtIssueManagementFee(uint _amount, bool _success);
     event evMgmtDistributed(uint256 _amount, bool _success);
+    event evMgmtInvestProject(address _projectWallet, uint _amount, bool result);
 
     // Triggered when the minTokensToCreate is reached
     event evLockFund();
-    event evMgmtInvestProject(address _projectWallet, uint _amount, bool result);
 }
 
 
@@ -311,6 +313,9 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         if(!isHarvestEnabled){
             throw;
         }
+        if(isDistributionReady){
+            throw;
+        }
         // transfer all balance from the following accounts
         // (1) HongCoin main account,
         // (2) ManagementFeePoolWallet,
@@ -318,8 +323,11 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // to ReturnAccount
 
         // reserve 20% of the fund to Management Body
+        // TODO
 
         // remaining fund: token holder can claim starting from this point
+        // TODO
+        isDistributionReady = true;
 
         // TODO set this the total amount harvested
         evMgmtDistributed(100, true); // total fund,
@@ -328,10 +336,13 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function reserveToWallet(address _reservedWallet) onlyOwner returns (bool success) {
         // Send 8% for 4 years of Management fee to _reservedWallet
+
+        // TODO move this away: the progress should be automatically triggered inside mgmtKickoff(x)
         return true;
     }
     function mgmtIssueManagementFee(address _managementWallet, uint _amount) onlyOwner returns (bool success) {
         // Send 2% of Management fee from _reservedWallet
+        // TODO
         evMgmtIssueManagementFee(1, true);
         return true;
     }
@@ -380,6 +391,7 @@ contract HongCoinInterface {
     mapping (address => uint) public rewardToken;
     uint public totalRewardToken;
 
+    // TODO Check the following ManagedAccount and mapping
     ManagedAccount public rewardAccount;
     ManagedAccount public HongCoinRewardAccount;
 
@@ -399,7 +411,9 @@ contract HongCoinInterface {
     function unFreeze() returns(bool _result);
     function harvest() returns(bool _result);
 
+    function collectReturn() returns(bool _success);
 
+    // TODO The following 5 functions may (not) be used for HongCoin's final implementation.
     function retrieveHongCoinReward(bool _toMembers) external returns (bool _success);
     function getMyReward() returns(bool _success);
     function withdrawRewardFor(address _account) internal returns (bool _success);
@@ -485,6 +499,11 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         supportFreezeQuorum += balances[msg.sender];
         if(supportFreezeQuorum * 2 > totalSupply){
             isFreezeEnabled = true;
+
+            // TODO freeze immediately
+            // transfer all available fund to ReturnAccount
+
+            isDistributionReady = true;
         }
         return true;
     }
@@ -526,6 +545,18 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         return true;
     }
 
+    function collectReturn() onlyTokenholders noEther returns (bool _success){
+
+        if(isDistributionReady){
+            // transfer all tokens in ReturnAccount back to Token Holder's account
+            // TODO
+
+            return true;
+        }else{
+            throw;
+        }
+
+    }
 
     function mgmtInvestProject(
         address _projectWallet,
@@ -557,6 +588,9 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         // Initiate event
         evMgmtInvestProject(_projectWallet, _amount, _success);
     }
+
+
+
 
 
     function retrieveHongCoinReward(bool _toMembers) external noEther returns (bool _success) {
