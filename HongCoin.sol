@@ -271,31 +271,31 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function refund() noEther {
         // define the refund condition
-		if (isFundLocked) {
-			throw;
-		}
+        if (isFundLocked) {
+            throw;
+        }
 
-		// TODO possibly there is some transaction cost for the refund
+        // TODO possibly there is some transaction cost for the refund
 
-		// Get extraBalance - will only succeed when called for the first time
-		// TODO: Do we need this here, or can we have a separate function?  What if this succeeds but the
-		// refund to the sender fails and we throw later on?  Or, what if this fails, can the sender ever
-		// get a refund?
-		if (extraBalance.balance >= extraBalance.accumulatedInput())
-		    extraBalance.payOut(address(this), extraBalance.accumulatedInput());
+        // Get extraBalance - will only succeed when called for the first time
+        // TODO: Do we need this here, or can we have a separate function?  What if this succeeds but the
+        // refund to the sender fails and we throw later on?  Or, what if this fails, can the sender ever
+        // get a refund?
+        if (extraBalance.balance >= extraBalance.accumulatedInput())
+           extraBalance.payOut(address(this), extraBalance.accumulatedInput());
 
-		// Always change state before calling the sender, throw if the call fails
-		var tmpWeiGiven = weiGiven[msg.sender];
-		totalSupply -= balances[msg.sender];
-		balances[msg.sender] = 0;
-		weiGiven[msg.sender] = 0;
+        // Always change state before calling the sender, throw if the call fails
+        var tmpWeiGiven = weiGiven[msg.sender];
+        totalSupply -= balances[msg.sender];
+        balances[msg.sender] = 0;
+        weiGiven[msg.sender] = 0;
 
-		if (msg.sender.call.value(tmpWeiGiven)()) {
-			evRefund(msg.sender, tmpWeiGiven);
-		}
-		else {
-			throw;
-		}
+        if (msg.sender.call.value(tmpWeiGiven)()) {
+           evRefund(msg.sender, tmpWeiGiven);
+        }
+        else {
+           throw;
+        }
     }
 
     function harvest() noEther onlyOwner returns (bool){
