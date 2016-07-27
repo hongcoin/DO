@@ -271,20 +271,30 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function refund() noEther {
         // define the refund condition
-        if (!isFundLocked) {
-            // TODO possibly there is some transaction cost for the refund
+        if (isFundLocked) {
+            throw;
+        }
 
-            // Get extraBalance - will only succeed when called for the first time
-            if (extraBalance.balance >= extraBalance.accumulatedInput())
-                extraBalance.payOut(address(this), extraBalance.accumulatedInput());
+        // TODO possibly there is some transaction cost for the refund
 
-            // Execute refund
-            if (msg.sender.call.value(weiGiven[msg.sender])()) {
-                evRefund(msg.sender, weiGiven[msg.sender]);
-                totalSupply -= balances[msg.sender];
-                balances[msg.sender] = 0;
-                weiGiven[msg.sender] = 0;
-            }
+        // Get extraBalance - will only succeed when called for the first time
+        // TODO: Do we need this here, or can we have a separate function?  What if this succeeds but the
+        // refund to the sender fails and we throw later on?  Or, what if this fails, can the sender ever
+        // get a refund?
+        if (extraBalance.balance >= extraBalance.accumulatedInput())
+           extraBalance.payOut(address(this), extraBalance.accumulatedInput());
+
+        // Always change state before calling the sender, throw if the call fails
+        var tmpWeiGiven = weiGiven[msg.sender];
+        totalSupply -= balances[msg.sender];
+        balances[msg.sender] = 0;
+        weiGiven[msg.sender] = 0;
+
+        if (msg.sender.call.value(tmpWeiGiven)()) {
+           evRefund(msg.sender, tmpWeiGiven);
+        }
+        else {
+           throw;
         }
     }
 
