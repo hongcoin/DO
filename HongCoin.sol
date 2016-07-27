@@ -144,7 +144,7 @@ contract TokenCreationInterface {
 
     event evFuelingToDate(uint value);
     event evCreatedToken(address indexed to, uint amount);
-    event evRefund(address indexed to, uint value);
+    event evRefund(address indexed to, uint value, bool result);
 
 }
 
@@ -270,7 +270,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     }
 
     function refund() noEther {
-        // define the refund condition
+        // define the refund condition: only when the fund minTokensToCreate is not reached
         if (isFundLocked) {
             throw;
         }
@@ -282,7 +282,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // refund to the sender fails and we throw later on?  Or, what if this fails, can the sender ever
         // get a refund?
         if (extraBalance.balance >= extraBalance.accumulatedInput())
-           extraBalance.payOut(address(this), extraBalance.accumulatedInput());
+            extraBalance.payOut(address(this), extraBalance.accumulatedInput());
 
         // Always change state before calling the sender, throw if the call fails
         var tmpWeiGiven = weiGiven[msg.sender];
@@ -291,16 +291,13 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         weiGiven[msg.sender] = 0;
 
         if (msg.sender.call.value(tmpWeiGiven)()) {
-           evRefund(msg.sender, tmpWeiGiven);
+            evRefund(msg.sender, tmpWeiGiven, true);
         }
         else {
-           throw;
+            evRefund(msg.sender, tmpWeiGiven, false);
+            throw;
         }
     }
-
-    // function harvest() noEther returns (bool){
-    //     return false;
-    // }
 
     function mgmtDistribute() noEther onlyOwner returns (bool){
         // transfer all balance from the following accounts
@@ -381,6 +378,9 @@ contract HongCoinInterface {
     mapping (address => bool) public votedFreeze;
     mapping (address => bool) public votedHarvest;
 
+    bool public isKickoffEnabled;
+    bool public isFreezeEnabled;
+    bool public isHarvestEnabled;
 
     mapping (address => uint) public rewardToken;
     uint public totalRewardToken;
