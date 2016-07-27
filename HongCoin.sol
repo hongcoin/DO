@@ -155,6 +155,11 @@ contract GovernanceInterface {
     bool public isDayThirtyChecked;
     bool public isDaySixtyChecked;
 
+    bool public isKickoffEnabled;
+    bool public isFreezeEnabled;
+    bool public isHarvestEnabled;
+
+
     // define the governance of this organization and critical functions
     function mgmtKickoff(uint _fiscal) returns (bool);
     function reserveToWallet(address _reservedWallet) returns (bool);
@@ -168,9 +173,9 @@ contract GovernanceInterface {
         uint _amount
     ) returns (bool);
 
-    event evMgmtKickoff(uint256 _fiscal);
-    event evMgmtIssueManagementFee();
-    event evMgmtDistributed(uint256 _amount);
+    event evMgmtKickoff(uint256 _fiscal, bool _success);
+    event evMgmtIssueManagementFee(uint _amount, bool _success);
+    event evMgmtDistributed(uint256 _amount, bool _success);
 
     // Triggered when the minTokensToCreate is reached
     event evLockFund();
@@ -265,7 +270,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function mgmtKickoff(
         uint256 _fiscal
     ) noEther onlyOwner returns (bool success) {
-        evMgmtKickoff(_fiscal);
+        evMgmtKickoff(_fiscal, true);
         return true;
     }
 
@@ -300,6 +305,10 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     }
 
     function mgmtDistribute() noEther onlyOwner returns (bool){
+
+        if(!isHarvestEnabled){
+            throw;
+        }
         // transfer all balance from the following accounts
         // (1) HongCoin main account,
         // (2) ManagementFeePoolWallet,
@@ -311,7 +320,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // remaining fund: token holder can claim starting from this point
 
         // TODO set this the total amount harvested
-        evMgmtDistributed(100); // total fund,
+        evMgmtDistributed(100, true); // total fund,
         return true;
     }
 
@@ -338,6 +347,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     }
     function mgmtIssueManagementFee(address _managementWallet, uint _amount) onlyOwner returns (bool success) {
         // Send 2% of Management fee from _reservedWallet
+        evMgmtIssueManagementFee(1, true);
         return true;
     }
 
@@ -378,9 +388,9 @@ contract HongCoinInterface {
     mapping (address => bool) public votedFreeze;
     mapping (address => bool) public votedHarvest;
 
-    bool public isKickoffEnabled;
-    bool public isFreezeEnabled;
-    bool public isHarvestEnabled;
+    uint256 public supportKickoffQuorum;
+    uint256 public supportFreezeQuorum;
+    uint256 public supportHarvestQuorum;
 
     mapping (address => uint) public rewardToken;
     uint public totalRewardToken;
@@ -463,26 +473,66 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
      * Voting for some critial steps, on blockchain
      */
     function kickoff() onlyTokenholders noEther returns (bool _vote) {
+        // prevent duplicate voting from the same token holder
+        if(votedKickoff[msg.sender]){
+            throw;
+        }
+
         votedKickoff[msg.sender] = true;
         evVotedKickoff(true);
+
+        supportKickoffQuorum += balances[msg.sender];
+        if(supportKickoffQuorum * 4 > totalSupply){
+            isKickoffEnabled = true;
+        }
         return true;
     }
 
     function freeze() onlyTokenholders noEther returns (bool _vote){
+        // prevent duplicate voting from the same token holder
+        if(votedFreeze[msg.sender]){
+            throw;
+        }
+
         votedFreeze[msg.sender] = true;
         evVotedFreeze(true);
+
+        supportFreezeQuorum += balances[msg.sender];
+        if(supportFreezeQuorum * 2 > totalSupply){
+            isFreezeEnabled = true;
+        }
         return true;
     }
 
     function unFreeze() onlyTokenholders noEther returns (bool _vote){
+        // prevent duplicate voting from the same token holder
+        if(!votedFreeze[msg.sender]){
+            throw;
+        }
+
         votedFreeze[msg.sender] = false;
         evVotedFreeze(false);
+
+        supportFreezeQuorum -= balances[msg.sender];
+        if(supportFreezeQuorum * 2 < totalSupply){
+            isFreezeEnabled = false;
+        }
         return false;
     }
 
     function harvest() onlyTokenholders noEther returns (bool _vote){
+        // prevent duplicate voting from the same token holder
+        if(votedHarvest[msg.sender]){
+            throw;
+        }
+
         votedHarvest[msg.sender] = true;
         evVotedHarvest(true);
+
+        supportHarvestQuorum += balances[msg.sender];
+        if(supportHarvestQuorum * 2 > totalSupply){
+            isHarvestEnabled = true;
+        }
         return true;
     }
 
@@ -490,7 +540,12 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     function mgmtInvestProject(
         address _projectWallet,
         uint _amount
-    ) noEther returns (bool _success) {
+    ) noEther onlyOwner returns (bool _success) {
+
+        if(!isKickoffEnabled || isFreezeEnabled || isHarvestEnabled){
+            evMgmtInvestProject(_projectWallet, _amount, false);
+            throw;
+        }
 
         _success = false;
 
