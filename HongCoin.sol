@@ -521,6 +521,11 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
     function harvest() onlyTokenholders noEther returns (bool _vote){
+        // Only call harvest() 3 Years after ICO ends
+        if(_closingTime + 1095 days < now){
+            throw;
+        }
+
         // prevent duplicate voting from the same token holder
         if(votedHarvest[msg.sender]){
             throw;
