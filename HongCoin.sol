@@ -135,7 +135,6 @@ contract TokenCreationInterface {
     uint public maxTokensToCreate;
     bool public isMinTokenReached;
     bool public isMaxTokenReached;
-    address public privateCreation;
     ManagedAccount public extraBalance;
     mapping (address => uint256) weiGiven;
 
@@ -184,13 +183,11 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function TokenCreation(
         uint _minTokensToCreate,
         uint _maxTokensToCreate,
-        uint _closingTime,
-        address _privateCreation) {
+        uint _closingTime) {
 
         closingTime = _closingTime;
         minTokensToCreate = _minTokensToCreate;
         maxTokensToCreate = _maxTokensToCreate;
-        privateCreation = _privateCreation;
         extraBalance = new ManagedAccount(address(this), true);
     }
 
@@ -441,9 +438,8 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         uint _maxTokensToCreate,
         // A variable to be set 30 days after contract execution.
         // There is an extra 30-day period after this date for second round, if it failed to reach for the first deadline.
-        uint _closingTime,
-        address _privateCreation
-    ) TokenCreation(_minTokensToCreate, _maxTokensToCreate, _closingTime, _privateCreation) {
+        uint _closingTime
+    ) TokenCreation(_minTokensToCreate, _maxTokensToCreate, _closingTime) {
 
         curator = _curator;
         hongcoinCreator = _hongcoinCreator;
@@ -633,8 +629,7 @@ contract HongCoin_Creator {
             HongCoin_Creator(this),
             _minTokensToCreate,
             _maxTokensToCreate,
-            _closingTime,
-            msg.sender
+            _closingTime
         );
     }
 }
