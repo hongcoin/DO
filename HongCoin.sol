@@ -37,8 +37,8 @@ contract Token is TokenInterface {
     // inadvertently also transferred ether
     modifier noEther() {if (msg.value > 0) throw; _}
 
-    modifier onlyOwner {
-        if(msg.sender == address(this)) _
+    modifier onlyManagementBody {
+        if(msg.sender == address(managementBodyAddress)) _
     }
 
     function balanceOf(address _owner) constant returns (uint256 balance) {
@@ -288,7 +288,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         }
     }
 
-    function mgmtDistribute() noEther onlyOwner returns (bool){
+    function mgmtDistribute() noEther onlyManagementBody returns (bool){
 
         if(!isHarvestEnabled){
             throw;
@@ -314,13 +314,13 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return true;
     }
 
-    function reserveToWallet(address _reservedWallet) onlyOwner returns (bool success) {
+    function reserveToWallet(address _reservedWallet) onlyManagementBody returns (bool success) {
         // Send 8% for 4 years of Management fee to _reservedWallet
 
         // TODO move this away: the progress should be automatically triggered inside mgmtKickoff(x)
         return true;
     }
-    function mgmtIssueManagementFee(address _managementWallet, uint _amount) onlyOwner returns (bool success) {
+    function mgmtIssueManagementFee(address _managementWallet, uint _amount) onlyManagementBody returns (bool success) {
         // Send 2% of Management fee from _reservedWallet
         // TODO
         evMgmtIssueManagementFee(1, true);
@@ -570,7 +570,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     function mgmtInvestProject(
         address _projectWallet,
         uint _amount
-    ) noEther onlyOwner returns (bool _success) {
+    ) noEther onlyManagementBody returns (bool _success) {
 
         if(!isKickoffEnabled[currentFiscalYear] || isFreezeEnabled || isHarvestEnabled){
             evMgmtInvestProject(_projectWallet, _amount, false);
