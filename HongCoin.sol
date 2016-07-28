@@ -219,7 +219,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
                 uint tokenToSupply = maxTokensToCreate - totalSupply;
                 uint fundToAccept = (msg.value * divisor() / 100 - tokenToSupply);
 
-                extraBalance.call.value(fundsToAccept - tokenToSupply)();
+                extraBalance.call.value(fundToAccept - tokenToSupply)();
                 balances[_tokenHolder] += tokenToSupply;
                 totalSupply += tokenToSupply;
                 weiGiven[_tokenHolder] += fundToAccept;
