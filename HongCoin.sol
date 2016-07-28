@@ -142,7 +142,7 @@ contract TokenCreationInterface {
     function refund();
     function divisor() constant returns (uint divisor);
 
-    event evFuelingToDate(uint value);
+    event evMinTokensReached(uint value);
     event evCreatedToken(address indexed to, uint amount);
     event evRefund(address indexed to, uint value, bool result);
 
@@ -249,24 +249,27 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // if we've reached the 60 day mark, try to lock the fund
         if (!isFundLocked && !isDaySixtyChecked && (now >= (closingTime + 30 days))) {
-            isFundLocked = isMaxTokenReached;
+            isFundLocked = isMinTokenReached;
             isDaySixtyChecked = true;
         }
 
         // 4: Events
         evCreatedToken(_tokenHolder, tokensToSupply);
-
-        // should the event be called "evMinTokensReached"?
-        if (!wasMinTokenReached && isMinTokenReached) evFuelingToDate(tokensCreated);
+        if (!wasMinTokenReached && isMinTokenReached) evMinTokensReached(tokensCreated);
         if (isFundLocked) evLockFund();
 
         // 5: External calls
-        if (totalTaxLevied > 0) extraBalance.call.value(totalTaxLevied)();
+        if (totalTaxLevied > 0) {
+            if (!extraBalance.send(totalTaxLevied))
+                throw;
+        }
 
         // TODO: might be better to put this into overpayment[_tokenHolder] += weiToRefund
         // and let them call back for it.
-        if (weiToRefund > 0) msg.sender.call.value(weiToRefund)();
-
+        if (weiToRefund > 0) {
+            if (!msg.sender.send(weiToRefund))
+                throw;
+        }
         return true;
     }
 
