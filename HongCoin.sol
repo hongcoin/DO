@@ -27,7 +27,6 @@ contract TokenInterface {
 
     function balanceOf(address _owner) constant returns (uint256 balance);
     function transfer(address _to, uint256 _amount) returns (bool success);
-    function transferFrom(address _from, address _to, uint256 _amount) returns (bool success);
 
     event evTransfer(address indexed _from, address indexed _to, uint256 _amount);
 }
@@ -58,25 +57,6 @@ contract Token is TokenInterface {
         return true;
     }
 
-    function transferFrom(
-        address _from,
-        address _to,
-        uint256 _amount
-    ) noEther returns (bool success) {
-
-        if (balances[_from] >= _amount
-            && allowed[_from][msg.sender] >= _amount
-            && _amount > 0) {
-
-            balances[_to] += _amount;
-            balances[_from] -= _amount;
-            allowed[_from][msg.sender] -= _amount;
-            evTransfer(_from, _to, _amount);
-            return true;
-        } else {
-            return false;
-        }
-    }
 }
 
 
@@ -130,6 +110,7 @@ contract ManagedAccount is ManagedAccountInterface{
 
 contract TokenCreationInterface {
 
+    address public managementBodyAddress;
     uint public closingTime;
     uint public minTokensToCreate;
     uint public maxTokensToCreate;
@@ -191,10 +172,12 @@ contract GovernanceInterface {
 
 contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function TokenCreation(
+        address _managementBodyAddress,
         uint _minTokensToCreate,
         uint _maxTokensToCreate,
         uint _closingTime) {
 
+        managementBodyAddress = _managementBodyAddress;
         closingTime = _closingTime;
         minTokensToCreate = _minTokensToCreate;
         maxTokensToCreate = _maxTokensToCreate;
@@ -374,7 +357,7 @@ contract HongCoinInterface {
 
     // we do not have grace period. Once the goal is reached, the fund is secured
 
-    address public curator;
+    address public managementBodyAddress;
 
     // 3 most important votings in blockchain
     mapping (uint => mapping (address => bool)) public votedKickoff;
@@ -389,12 +372,8 @@ contract HongCoinInterface {
     mapping (address => uint) public rewardToken;
     uint public totalRewardToken;
 
-    // TODO Check the following ManagedAccount and mapping
     ManagedAccount public ReturnAccount;
     ManagedAccount public HongCoinRewardAccount;
-
-    mapping (address => uint) public HongCoinPaidOut;
-    mapping (address => uint) public paidOut;
 
     HongCoin_Creator public hongcoinCreator;
 
@@ -410,17 +389,6 @@ contract HongCoinInterface {
     function harvest() returns(bool _result);
 
     function collectReturn() returns(bool _success);
-
-    // TODO The following 5 functions may (not) be used for HongCoin's final implementation.
-    function retrieveHongCoinReward(bool _toMembers) external returns (bool _success);
-    function getMyReward() returns(bool _success);
-    function withdrawRewardFor(address _account) internal returns (bool _success);
-    function transferWithoutReward(address _to, uint256 _amount) returns (bool success);
-    function transferFromWithoutReward(
-        address _from,
-        address _to,
-        uint256 _amount
-    ) returns (bool success);
 
     // Trigger the following events when the voting result is available
     event evKickoff(uint _fiscal);
@@ -440,16 +408,16 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
     function HongCoin(
-        address _curator,
+        address _managementBodyAddress,
         HongCoin_Creator _hongcoinCreator,
         uint _minTokensToCreate,
         uint _maxTokensToCreate,
         // A variable to be set 30 days after contract execution.
         // There is an extra 30-day period after this date for second round, if it failed to reach for the first deadline.
         uint _closingTime
-    ) TokenCreation(_minTokensToCreate, _maxTokensToCreate, _closingTime) {
+    ) TokenCreation(_managementBodyAddress, _minTokensToCreate, _maxTokensToCreate, _closingTime) {
 
-        curator = _curator;
+        managementBodyAddress = _managementBodyAddress;
         hongcoinCreator = _hongcoinCreator;
         ReturnAccount = new ManagedAccount(address(this), false);
         HongCoinRewardAccount = new ManagedAccount(address(this), false);
@@ -587,8 +555,8 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         // prevent return being collected by the same token holder
         if(returnCollected[msg.sender]){throw;}
 
-        // Formula:  valueToReturn =  unit price * (tokens owned / total tokens created)
-        uint valueToReturn = ReturnAccount.accumulatedInput() * balances[msg.sender] / tokensCreated;
+        // Formula:  valueToReturn =  unit price * 0.8 * (tokens owned / total tokens created)
+        uint valueToReturn = ReturnAccount.accumulatedInput() * 8 / 10 * balances[msg.sender] / tokensCreated;
         returnCollected[msg.sender] = true;
 
         if(!ReturnAccount.send(valueToReturn)){
@@ -609,76 +577,22 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
             throw;
         }
 
-        _success = false;
-
-        if (actualBalance() >= _amount){
-            // only create reward tokens when ether is not sent to the HongCoin itself and
-            // related addresses. Proxy addresses should be forbidden by the curator.
-            if (_projectWallet != address(this) && _projectWallet != address(ReturnAccount)
-                && _projectWallet != address(HongCoinRewardAccount)
-                && _projectWallet != address(extraBalance)
-                && _projectWallet != address(curator)) {
-
-                rewardToken[address(this)] += _amount;
-                totalRewardToken += _amount;
-
-                _success = true;
-            }
+        if(_amount >= actualBalance()){
+            throw;
         }
+
+        // TODO send the balance to _projectWallet
+
 
         // Initiate event
-        evMgmtInvestProject(_projectWallet, _amount, _success);
+        evMgmtInvestProject(_projectWallet, _amount, true);
     }
 
 
-
-
-
-    function retrieveHongCoinReward(bool _toMembers) external noEther returns (bool _success) {
-        HongCoin hongcoin = HongCoin(msg.sender);
-
-        if ((rewardToken[msg.sender] * HongCoinRewardAccount.accumulatedInput()) /
-            totalRewardToken < HongCoinPaidOut[msg.sender])
-            throw;
-
-        uint reward =
-            (rewardToken[msg.sender] * HongCoinRewardAccount.accumulatedInput()) /
-            totalRewardToken - HongCoinPaidOut[msg.sender];
-        if(_toMembers) {
-            if (!HongCoinRewardAccount.payOut(hongcoin.ReturnAccount(), reward))
-                throw;
-            }
-        else {
-            if (!HongCoinRewardAccount.payOut(hongcoin, reward))
-                throw;
-        }
-        HongCoinPaidOut[msg.sender] += reward;
-        return true;
-    }
-
-    function getMyReward() noEther returns (bool _success) {
-        return withdrawRewardFor(msg.sender);
-    }
-
-
-    function withdrawRewardFor(address _account) noEther internal returns (bool _success) {
-        if ((balanceOf(_account) * ReturnAccount.accumulatedInput()) / tokensCreated < paidOut[_account])
-            throw;
-
-        uint reward =
-            (balanceOf(_account) * ReturnAccount.accumulatedInput()) / tokensCreated - paidOut[_account];
-        if (!ReturnAccount.payOut(_account, reward))
-            throw;
-        paidOut[_account] += reward;
-        return true;
-    }
 
 
     function transfer(address _to, uint256 _value) returns (bool success) {
-        if (isFundLocked
-            && transferPaidOut(msg.sender, _to, _value)
-            && super.transfer(_to, _value)) {
-
+        if (isFundLocked && super.transfer(_to, _value)) {
             return true;
         } else {
             throw;
@@ -686,50 +600,6 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
 
-    function transferWithoutReward(address _to, uint256 _value) returns (bool success) {
-        if (!getMyReward())
-            throw;
-        return transfer(_to, _value);
-    }
-
-
-    function transferFrom(address _from, address _to, uint256 _value) returns (bool success) {
-        if (isFundLocked
-            && transferPaidOut(_from, _to, _value)
-            && super.transferFrom(_from, _to, _value)) {
-
-            return true;
-        } else {
-            throw;
-        }
-    }
-
-
-    function transferFromWithoutReward(
-        address _from,
-        address _to,
-        uint256 _value
-    ) returns (bool success) {
-
-        if (!withdrawRewardFor(_from))
-            throw;
-        return transferFrom(_from, _to, _value);
-    }
-
-
-    function transferPaidOut(
-        address _from,
-        address _to,
-        uint256 _value
-    ) internal returns (bool success) {
-
-        uint transferPaidOut = paidOut[_from] * _value / balanceOf(_from);
-        if (transferPaidOut > paidOut[_from])
-            throw;
-        paidOut[_from] -= transferPaidOut;
-        paidOut[_to] += transferPaidOut;
-        return true;
-    }
 
     function actualBalance() constant returns (uint _actualBalance) {
         return this.balance;
@@ -738,14 +608,14 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
 contract HongCoin_Creator {
     function createHongCoin(
-        address _curator,
+        address _managementBodyAddress,
         uint _minTokensToCreate,
         uint _maxTokensToCreate,
         uint _closingTime
     ) returns (HongCoin _newHongCoin) {
 
         return new HongCoin(
-            _curator,
+            _managementBodyAddress,
             HongCoin_Creator(this),
             _minTokensToCreate,
             _maxTokensToCreate,
