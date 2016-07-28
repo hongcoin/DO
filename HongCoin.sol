@@ -153,7 +153,7 @@ contract GovernanceInterface {
     // TODO move this away: the progress should be automatically triggered inside kickoff(x)
     function reserveToWallet(address _reservedWallet) returns (bool);
 
-    function mgmtIssueManagementFee(address _managementWallet, uint _amount) returns (bool);
+    function mgmtIssueManagementFee(uint _amount) returns (bool);
     function mgmtDistribute() returns (bool);
 
     function mgmtInvestProject(
@@ -317,11 +317,13 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function reserveToWallet(address _reservedWallet) onlyManagementBody returns (bool success) {
         // Send 8% for 4 years of Management fee to _reservedWallet
 
-        // TODO move this away: the progress should be automatically triggered inside mgmtKickoff(x)
+        // TODO move this away: the progress should be automatically triggered inside kickoff(x)
         return true;
     }
-    function mgmtIssueManagementFee(address _managementWallet, uint _amount) onlyManagementBody returns (bool success) {
+    function mgmtIssueManagementFee(uint _amount) onlyManagementBody returns (bool success) {
         // Send 2% of Management fee from _reservedWallet
+
+        // TODO move this away: the progress should be automatically triggered inside kickoff(x)
         // TODO
         evMgmtIssueManagementFee(1, true);
         return true;
@@ -467,7 +469,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
                 throw;
             }
         }else{
-            // do not accept kickoff anymore from the 4th year
+            // do not accept kickoff anymore after the 4th year
             throw;
         }
 
