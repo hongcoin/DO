@@ -23,7 +23,7 @@ along with the HongCoin.  If not, see <http://www.gnu.org/licenses/>.
 contract TokenInterface {
     mapping (address => uint256) balances;
     mapping (address => mapping (address => uint256)) allowed;
-    uint256 public totalSupply;
+    uint256 public tokensCreated;
 
     function balanceOf(address _owner) constant returns (uint256 balance);
     function transfer(address _to, uint256 _amount) returns (bool success);
@@ -201,73 +201,73 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     }
 
     function createTokenProxy(address _tokenHolder) returns (bool success) {
+        // 1: Pre-Conditions
+        if (isFundLocked) throw;
+        if (isMaxTokenReached) throw;
+        if (msg.value <= 0) throw;
 
-        if(isFundLocked){
-            // we refund the input
-            // TODO possibly there is some transaction cost for the refund
-            msg.sender.call.value(msg.value)();
+        // 2: Business logic (but no state changes)
+        // setup transaction details
+        var weiPerToken = divisor() / 100;
+        uint256 tokensRequested = msg.value / weiPerToken;
+        uint256 tokensToSupply = tokensRequested;
+        uint256 weiToAccept = msg.value;
+        uint256 weiToRefund = 0;
 
-        } else if(msg.value > 0) {
-
-            uint token = (msg.value * 100) / divisor();
-
-            // if the value of maxTokensToCreate is reached (including current transaction)
-            if(totalSupply + token > maxTokensToCreate){
-                isMaxTokenReached = true;
-
-                // accept part of the fund, refund the remaining part
-                uint tokenToSupply = maxTokensToCreate - totalSupply;
-                uint fundToAccept = (msg.value * divisor() / 100 - tokenToSupply);
-
-                extraBalance.call.value(fundToAccept - tokenToSupply)();
-                balances[_tokenHolder] += tokenToSupply;
-                totalSupply += tokenToSupply;
-                weiGiven[_tokenHolder] += fundToAccept;
-                evCreatedToken(_tokenHolder, tokenToSupply);
-
-                // refund the remaining ether to the user
-                // TODO possibly there is some transaction cost for the refund
-                msg.sender.call.value(msg.value - fundToAccept)();
-
-                evLockFund();
-                isFundLocked = true;
-
-            } else {
-
-                extraBalance.call.value(msg.value - token)();
-                balances[_tokenHolder] += token;
-                totalSupply += token;
-                weiGiven[_tokenHolder] += msg.value;
-                evCreatedToken(_tokenHolder, token);
-                if (totalSupply >= minTokensToCreate && !isMinTokenReached) {
-                    isMinTokenReached = true;
-                    evFuelingToDate(totalSupply);
-                }
-            }
-
-            if(!isFundLocked){
-                if(closingTime > now){
-                    if(!isDayThirtyChecked){
-                        if(totalSupply >= minTokensToCreate){
-                            isFundLocked = true;
-                            evLockFund();
-                        }
-                        isDayThirtyChecked = true;
-                    }
-                }else if(closingTime + 30 days > now){
-                    if(!isDaySixtyChecked){
-                        if(totalSupply >= minTokensToCreate){
-                            isFundLocked = true;
-                            evLockFund();
-                        }
-                        isDaySixtyChecked = true;
-                    }
-                }
-            }
-
-            return true;
+        // cap sale if there aren't enough tokens to sell
+        uint256 tokensAvailable = maxTokensToCreate - tokensCreated;
+        bool doLockFund = false;
+        if (tokensToSupply > tokensAvailable) {
+            tokensToSupply = tokensAvailable;
+            weiToAccept = tokensToSupply * weiPerToken;
+            weiToRefund = msg.value - weiToAccept;
+            doLockFund = true;
         }
-        throw;
+
+        // 3: State Changes (no external calls)
+        if (doLockFund) isFundLocked = true;
+
+        // when the caller is paying more than 1 wei per token, the extra is basically a tax.
+        uint256 totalTaxLevied = weiToAccept - tokensToSupply;
+        balances[_tokenHolder] += tokensToSupply;
+        tokensCreated += tokensToSupply;
+        weiGiven[_tokenHolder] += weiToAccept;
+
+        bool wasMinTokenReached = isMinTokenReached;
+        if (tokensCreated >= minTokensToCreate && !isMinTokenReached) {
+            isMinTokenReached = true;
+        }
+        if (tokensCreated >= maxTokensToCreate && !isMaxTokenReached) {
+            isMaxTokenReached = true;
+        }
+
+        // if we've reached the 30 day mark, try to lock the fund
+        if (!isFundLocked && !isDayThirtyChecked && now >= closingTime) {
+            isFundLocked = isMinTokenReached;
+            isDayThirtyChecked = true;
+        }
+
+        // if we've reached the 60 day mark, try to lock the fund
+        if (!isFundLocked && !isDaySixtyChecked && (now >= (closingTime + 30 days))) {
+            isFundLocked = isMaxTokenReached;
+            isDaySixtyChecked = true;
+        }
+
+        // 4: Events
+        evCreatedToken(_tokenHolder, tokensToSupply);
+
+        // should the event be called "evMinTokensReached"?
+        if (!wasMinTokenReached && isMinTokenReached) evFuelingToDate(tokensCreated);
+        if (isFundLocked) evLockFund();
+
+        // 5: External calls
+        if (totalTaxLevied > 0) extraBalance.call.value(totalTaxLevied)();
+
+        // TODO: might be better to put this into overpayment[_tokenHolder] += weiToRefund
+        // and let them call back for it.
+        if (weiToRefund > 0) msg.sender.call.value(weiToRefund)();
+
+        return true;
     }
 
 
@@ -295,7 +295,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // Always change state before calling the sender, throw if the call fails
         var tmpWeiGiven = weiGiven[msg.sender];
-        totalSupply -= balances[msg.sender];
+        tokensCreated -= balances[msg.sender];
         balances[msg.sender] = 0;
         weiGiven[msg.sender] = 0;
 
@@ -355,13 +355,13 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // The number of (base unit) tokens per wei is calculated
         // as `msg.value` * 100 / `divisor`
 
-        if(totalSupply < 100000000000000000000000000){ // 1eth(1000000000000000000) * 100M (100000000)
+        if(tokensCreated < 100000000000000000000000000){ // 1eth(1000000000000000000) * 100M (100000000)
             return 100;
-        } else if (totalSupply < 200000000000000000000000000){
+        } else if (tokensCreated < 200000000000000000000000000){
             return 101;
-        } else if (totalSupply < 300000000000000000000000000){
+        } else if (tokensCreated < 300000000000000000000000000){
             return 102;
-        } else if (totalSupply < 400000000000000000000000000){
+        } else if (tokensCreated < 400000000000000000000000000){
             return 103;
         } else {
             return 104;
@@ -481,7 +481,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         evVotedKickoff(true);
 
         supportKickoffQuorum += balances[msg.sender];
-        if(supportKickoffQuorum * 4 > totalSupply){
+        if(supportKickoffQuorum * 4 > tokensCreated){
             isKickoffEnabled = true;
         }
         return true;
@@ -497,7 +497,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         evVotedFreeze(true);
 
         supportFreezeQuorum += balances[msg.sender];
-        if(supportFreezeQuorum * 2 > totalSupply){
+        if(supportFreezeQuorum * 2 > tokensCreated){
             isFreezeEnabled = true;
 
             // TODO freeze immediately
@@ -518,7 +518,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         evVotedFreeze(false);
 
         supportFreezeQuorum -= balances[msg.sender];
-        if(supportFreezeQuorum * 2 < totalSupply){
+        if(supportFreezeQuorum * 2 < tokensCreated){
             isFreezeEnabled = false;
         }
         return false;
@@ -539,7 +539,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         evVotedHarvest(true);
 
         supportHarvestQuorum += balances[msg.sender];
-        if(supportHarvestQuorum * 2 > totalSupply){
+        if(supportHarvestQuorum * 2 > tokensCreated){
             isHarvestEnabled = true;
         }
         return true;
@@ -621,11 +621,11 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
 
     function withdrawRewardFor(address _account) noEther internal returns (bool _success) {
-        if ((balanceOf(_account) * rewardAccount.accumulatedInput()) / totalSupply < paidOut[_account])
+        if ((balanceOf(_account) * rewardAccount.accumulatedInput()) / tokensCreated < paidOut[_account])
             throw;
 
         uint reward =
-            (balanceOf(_account) * rewardAccount.accumulatedInput()) / totalSupply - paidOut[_account];
+            (balanceOf(_account) * rewardAccount.accumulatedInput()) / tokensCreated - paidOut[_account];
         if (!rewardAccount.payOut(_account, reward))
             throw;
         paidOut[_account] += reward;
