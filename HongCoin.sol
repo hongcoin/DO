@@ -380,6 +380,7 @@ contract HongCoinInterface {
     mapping (uint => mapping (address => bool)) public votedKickoff;
     mapping (address => bool) public votedFreeze;
     mapping (address => bool) public votedHarvest;
+    mapping (address => bool) public returnCollected;
 
     mapping (uint => uint256) public supportKickoffQuorum;
     uint256 public supportFreezeQuorum;
@@ -389,7 +390,7 @@ contract HongCoinInterface {
     uint public totalRewardToken;
 
     // TODO Check the following ManagedAccount and mapping
-    ManagedAccount public rewardAccount;
+    ManagedAccount public ReturnAccount;
     ManagedAccount public HongCoinRewardAccount;
 
     mapping (address => uint) public HongCoinPaidOut;
@@ -450,9 +451,9 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
         curator = _curator;
         hongcoinCreator = _hongcoinCreator;
-        rewardAccount = new ManagedAccount(address(this), false);
+        ReturnAccount = new ManagedAccount(address(this), false);
         HongCoinRewardAccount = new ManagedAccount(address(this), false);
-        if (address(rewardAccount) == 0)
+        if (address(ReturnAccount) == 0)
             throw;
         if (address(HongCoinRewardAccount) == 0)
             throw;
@@ -477,6 +478,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
         if(!isInitialKickoffEnabled){  // if there is no kickoff() enabled before
             // input of _fiscal have to be the first year
+            // available range of _fiscal is [1]
             if(_fiscal == 1){
                 // accept voting
             }else{
@@ -484,6 +486,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
             }
 
         }else if(currentFiscalYear <= 3){  // if there was any kickoff() enabled before already
+            // available range of _fiscal is [2,3,4]
             // input of _fiscal have to be the next year
             if(_fiscal != currentFiscalYear + 1){
                 throw;
@@ -504,13 +507,19 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         votedKickoff[_fiscal][msg.sender] = true;
 
         supportKickoffQuorum[_fiscal] += balances[msg.sender];
-        if(supportKickoffQuorum[_fiscal] * 4 > tokensCreated){
+        if(supportKickoffQuorum[_fiscal] * 4 > tokensCreated){ // 25%
             if(_fiscal == 1){
                 isInitialKickoffEnabled = true;
+
+                // TODO reserveToWallet() 8% of whole fund
+
             }
             isKickoffEnabled[_fiscal] = true;
             currentFiscalYear = _fiscal;
             lastKickoffDate = now;
+
+            // TODO transfer 2% annual management fee from reservedWallet to mgmtWallet (external)
+
             evKickoff(_fiscal);
         }
         return true;
@@ -525,7 +534,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         votedFreeze[msg.sender] = true;
 
         supportFreezeQuorum += balances[msg.sender];
-        if(supportFreezeQuorum * 2 > tokensCreated){
+        if(supportFreezeQuorum * 2 > tokensCreated){ // 50%
             isFreezeEnabled = true;
 
             // TODO freeze immediately
@@ -549,29 +558,21 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         }
 
         votedFreeze[msg.sender] = false;
-
         supportFreezeQuorum -= balances[msg.sender];
-        if(supportFreezeQuorum * 2 < tokensCreated){
-            isFreezeEnabled = false;
-        }
         return false;
     }
 
     function harvest() onlyTokenholders noEther returns (bool _vote){
         // Only call harvest() 3 Years after ICO ends
-        if(closingTime + 1095 days < now){
-            throw;
-        }
+        if(closingTime + 1095 days < now){throw;}
 
         // prevent duplicate voting from the same token holder
-        if(votedHarvest[msg.sender]){
-            throw;
-        }
+        if(votedHarvest[msg.sender]){throw;}
 
         votedHarvest[msg.sender] = true;
 
         supportHarvestQuorum += balances[msg.sender];
-        if(supportHarvestQuorum * 2 > tokensCreated){
+        if(supportHarvestQuorum * 2 > tokensCreated){ // 50%
             isHarvestEnabled = true;
             evHarvest();
         }
@@ -579,15 +580,22 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 
     function collectReturn() onlyTokenholders noEther returns (bool _success){
+        // transfer all tokens in ReturnAccount back to Token Holder's account
 
-        if(isDistributionReady){
-            // transfer all tokens in ReturnAccount back to Token Holder's account
-            // TODO
+        if(!isDistributionReady){throw;}
 
-            return true;
-        }else{
+        // prevent return being collected by the same token holder
+        if(returnCollected[msg.sender]){throw;}
+
+        // Formula:  valueToReturn =  unit price * (tokens owned / total tokens created)
+        uint valueToReturn = ReturnAccount.accumulatedInput() * balances[msg.sender] / tokensCreated;
+        returnCollected[msg.sender] = true;
+
+        if(!ReturnAccount.send(valueToReturn)){
             throw;
         }
+
+        return true;
 
     }
 
@@ -606,7 +614,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         if (actualBalance() >= _amount){
             // only create reward tokens when ether is not sent to the HongCoin itself and
             // related addresses. Proxy addresses should be forbidden by the curator.
-            if (_projectWallet != address(this) && _projectWallet != address(rewardAccount)
+            if (_projectWallet != address(this) && _projectWallet != address(ReturnAccount)
                 && _projectWallet != address(HongCoinRewardAccount)
                 && _projectWallet != address(extraBalance)
                 && _projectWallet != address(curator)) {
@@ -637,7 +645,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
             (rewardToken[msg.sender] * HongCoinRewardAccount.accumulatedInput()) /
             totalRewardToken - HongCoinPaidOut[msg.sender];
         if(_toMembers) {
-            if (!HongCoinRewardAccount.payOut(hongcoin.rewardAccount(), reward))
+            if (!HongCoinRewardAccount.payOut(hongcoin.ReturnAccount(), reward))
                 throw;
             }
         else {
@@ -654,12 +662,12 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
 
     function withdrawRewardFor(address _account) noEther internal returns (bool _success) {
-        if ((balanceOf(_account) * rewardAccount.accumulatedInput()) / tokensCreated < paidOut[_account])
+        if ((balanceOf(_account) * ReturnAccount.accumulatedInput()) / tokensCreated < paidOut[_account])
             throw;
 
         uint reward =
-            (balanceOf(_account) * rewardAccount.accumulatedInput()) / tokensCreated - paidOut[_account];
-        if (!rewardAccount.payOut(_account, reward))
+            (balanceOf(_account) * ReturnAccount.accumulatedInput()) / tokensCreated - paidOut[_account];
+        if (!ReturnAccount.payOut(_account, reward))
             throw;
         paidOut[_account] += reward;
         return true;
