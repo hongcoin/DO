@@ -505,6 +505,9 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
 
         supportKickoffQuorum[_fiscal] += balances[msg.sender];
         if(supportKickoffQuorum[_fiscal] * 4 > tokensCreated){
+            if(_fiscal == 1){
+                isInitialKickoffEnabled = true;
+            }
             isKickoffEnabled[_fiscal] = true;
             currentFiscalYear = _fiscal;
             lastKickoffDate = now;
