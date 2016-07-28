@@ -158,16 +158,18 @@ contract GovernanceInterface {
     bool public isDayThirtyChecked;
     bool public isDaySixtyChecked;
 
-    bool public isKickoffEnabled;
+    uint public currentFiscalYear;
+    uint public lastKickoffDate;
+    mapping (uint => bool) public isKickoffEnabled;
+    bool public isInitialKickoffEnabled;
     bool public isFreezeEnabled;
     bool public isHarvestEnabled;
     bool public isDistributionReady;
 
 
     // define the governance of this organization and critical functions
-    function mgmtKickoff(uint _fiscal) returns (bool);
 
-    // TODO move this away: the progress should be automatically triggered inside mgmtKickoff(x)
+    // TODO move this away: the progress should be automatically triggered inside kickoff(x)
     function reserveToWallet(address _reservedWallet) returns (bool);
 
     function mgmtIssueManagementFee(address _managementWallet, uint _amount) returns (bool);
@@ -178,7 +180,6 @@ contract GovernanceInterface {
         uint _amount
     ) returns (bool);
 
-    event evMgmtKickoff(uint256 _fiscal, bool _success);
     event evMgmtIssueManagementFee(uint _amount, bool _success);
     event evMgmtDistributed(uint256 _amount, bool _success);
     event evMgmtInvestProject(address _projectWallet, uint _amount, bool result);
@@ -273,13 +274,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return true;
     }
 
-
-    function mgmtKickoff(
-        uint256 _fiscal
-    ) noEther onlyOwner returns (bool success) {
-        evMgmtKickoff(_fiscal, true);
-        return true;
-    }
 
     function refund() noEther {
         // define the refund condition: only when the fund minTokensToCreate is not reached
@@ -383,11 +377,11 @@ contract HongCoinInterface {
     address public curator;
 
     // 3 most important votings in blockchain
-    mapping (address => bool) public votedKickoff;
+    mapping (uint => mapping (address => bool)) public votedKickoff;
     mapping (address => bool) public votedFreeze;
     mapping (address => bool) public votedHarvest;
 
-    uint256 public supportKickoffQuorum;
+    mapping (uint => uint256) public supportKickoffQuorum;
     uint256 public supportFreezeQuorum;
     uint256 public supportHarvestQuorum;
 
@@ -409,7 +403,7 @@ contract HongCoinInterface {
 
     function () returns (bool success);
 
-    function kickoff() returns(bool _result);
+    function kickoff(uint _fiscal) returns(bool _result);
     function freeze() returns(bool _result);
     function unFreeze() returns(bool _result);
     function harvest() returns(bool _result);
@@ -427,9 +421,10 @@ contract HongCoinInterface {
         uint256 _amount
     ) returns (bool success);
 
-    event evVotedKickoff(bool _vote);
-    event evVotedFreeze(bool _vote);
-    event evVotedHarvest(bool _vote);
+    // Trigger the following events when the voting result is available
+    event evKickoff(uint _fiscal);
+    event evFreeze();
+    event evHarvest();
 }
 
 
@@ -474,18 +469,49 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     /*
      * Voting for some critial steps, on blockchain
      */
-    function kickoff() onlyTokenholders noEther returns (bool _vote) {
+    function kickoff(uint _fiscal) onlyTokenholders noEther returns (bool _vote) {
         // prevent duplicate voting from the same token holder
-        if(votedKickoff[msg.sender]){
+        if(votedKickoff[_fiscal][msg.sender]){
             throw;
         }
 
-        votedKickoff[msg.sender] = true;
-        evVotedKickoff(true);
+        if(!isInitialKickoffEnabled){  // if there is no kickoff() enabled before
+            // input of _fiscal have to be the first year
+            if(_fiscal == 1){
+                // accept voting
+            }else{
+                throw;
+            }
 
-        supportKickoffQuorum += balances[msg.sender];
-        if(supportKickoffQuorum * 4 > tokensCreated){
-            isKickoffEnabled = true;
+        }else if(currentFiscalYear <= 3){  // if there was any kickoff() enabled before already
+            // input of _fiscal have to be the next year
+            if(_fiscal != currentFiscalYear + 1){
+                throw;
+            }
+
+            if(lastKickoffDate + 304 days < now){ // 2 months from the end of the fiscal year
+                // accept voting
+            }else{
+                // we do not accept early kickoff
+                throw;
+            }
+        }else{
+            // do not accept kickoff anymore from the 4th year
+            throw;
+        }
+
+
+        votedKickoff[_fiscal][msg.sender] = true;
+
+        supportKickoffQuorum[_fiscal] += balances[msg.sender];
+        if(supportKickoffQuorum[_fiscal] * 4 > tokensCreated){
+            if(_fiscal == 1){
+                isInitialKickoffEnabled = true;
+            }
+            isKickoffEnabled[_fiscal] = true;
+            currentFiscalYear = _fiscal;
+            lastKickoffDate = now;
+            evKickoff(_fiscal);
         }
         return true;
     }
@@ -497,7 +523,6 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         }
 
         votedFreeze[msg.sender] = true;
-        evVotedFreeze(true);
 
         supportFreezeQuorum += balances[msg.sender];
         if(supportFreezeQuorum * 2 > tokensCreated){
@@ -507,6 +532,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
             // transfer all available fund to ReturnAccount
 
             isDistributionReady = true;
+            evFreeze();
         }
         return true;
     }
@@ -517,8 +543,12 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
             throw;
         }
 
+        if(isFreezeEnabled){
+            // no change to this if the fund is freezed
+            throw;
+        }
+
         votedFreeze[msg.sender] = false;
-        evVotedFreeze(false);
 
         supportFreezeQuorum -= balances[msg.sender];
         if(supportFreezeQuorum * 2 < tokensCreated){
@@ -539,11 +569,11 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         }
 
         votedHarvest[msg.sender] = true;
-        evVotedHarvest(true);
 
         supportHarvestQuorum += balances[msg.sender];
         if(supportHarvestQuorum * 2 > tokensCreated){
             isHarvestEnabled = true;
+            evHarvest();
         }
         return true;
     }
@@ -566,7 +596,7 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         uint _amount
     ) noEther onlyOwner returns (bool _success) {
 
-        if(!isKickoffEnabled || isFreezeEnabled || isHarvestEnabled){
+        if(!isKickoffEnabled[currentFiscalYear] || isFreezeEnabled || isHarvestEnabled){
             evMgmtInvestProject(_projectWallet, _amount, false);
             throw;
         }
