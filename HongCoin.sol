@@ -55,6 +55,7 @@ contract Token is TokenInterface {
 
         balances[msg.sender] -= _amount;
         balances[_to] += _amount;
+
         evTransfer(msg.sender, _to, _amount);
 
         return true;
@@ -627,6 +628,16 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
 
     function transfer(address _to, uint256 _value) returns (bool success) {
+
+        // Reset kickoff voting for the next fiscal year from this address to false
+        if(currentFiscalYear < 4){
+            votedKickoff[currentFiscalYear+1][msg.sender] = false;
+        }
+
+        // Reset Freeze and Harvest voting from this address to false
+        votedFreeze[msg.sender] = false;
+        votedHarvest[msg.sender] = false;
+
         if (isFundLocked && super.transfer(_to, _value)) {
             return true;
         } else {
