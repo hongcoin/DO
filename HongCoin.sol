@@ -248,11 +248,11 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return true;
     }
 
-    function refund() noEther notLocked {
+    function refund() noEther notLocked onlyTokenholders {
         // 1: Preconditions
         if (weiGiven[msg.sender] < 0) throw;
         if (taxPaid[msg.sender] < 0) throw;
-        if (balances[msg.sender] <= 0 || balances[msg.sender] > tokensCreated) throw;
+        if (balances[msg.sender] > tokensCreated) throw;
 
         // 2: Business logic
         bool wasMinTokensReached = isMinTokensReached();
@@ -293,12 +293,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function isMaxTokensReached() returns (bool) {
         return tokensCreated >= maxTokensToCreate;
-    }
-
-    function _updateTokensCreated(uint256 newTotal) notLocked internal {
-        bool wasMinTokensReached = isMinTokensReached();
-        bool wasMaxTokensReached = isMaxTokensReached();
-        tokensCreated = newTotal;
     }
 
     function mgmtDistribute() noEther onlyManagementBody returns (bool){
