@@ -2,20 +2,20 @@
 
 - Bytecode Verification performed was compared on second iteration -
 
-This file is part of the HongCoin.
+This file is part of the HONG.
 
-The HongCoin is free software: you can redistribute it and/or modify
+The HONG is free software: you can redistribute it and/or modify
 it under the terms of the GNU lesser General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-The HongCoin is distributed in the hope that it will be useful,
+The HONG is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU lesser General Public License for more details.
 
 You should have received a copy of the GNU lesser General Public License
-along with the HongCoin.  If not, see <http://www.gnu.org/licenses/>.
+along with the HONG.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
@@ -310,9 +310,9 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             throw;
         }
         // transfer all balance from the following accounts
-        // (1) HongCoin main account,
+        // (1) HONG main account,
         // (2) ManagementFeePoolWallet,
-        // (3) HongCoinRewardAccount
+        // (3) HONGRewardAccount
         // to ReturnAccount
 
         // reserve 20% of the fund to Management Body
@@ -345,7 +345,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function divisor() constant returns (uint divisor) {
 
         // Quantity divisor model: based on total quantity of coins issued
-        // Temp: Price ranged from 1.0 to 1.04 Ether for 500 M HongCoin Tokens
+        // Temp: Price ranged from 1.0 to 1.04 Ether for 500 M HONG Tokens
 
         // The number of (base unit) tokens per wei is calculated
         // as `msg.value` * 100 / `divisor`
@@ -368,7 +368,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
 
 
-contract HongCoinInterface {
+contract HONGInterface {
 
     // we do not have grace period. Once the goal is reached, the fund is secured
 
@@ -388,12 +388,12 @@ contract HongCoinInterface {
     uint public totalRewardToken;
 
     ManagedAccount public ReturnAccount;
-    ManagedAccount public HongCoinRewardAccount;
+    ManagedAccount public HONGRewardAccount;
 
-    HongCoin_Creator public hongcoinCreator;
+    HONG_Creator public hongcoinCreator;
 
 
-    // Used to restrict access to certain functions to only HongCoin Token Holders
+    // Used to restrict access to certain functions to only HONG Token Holders
     modifier onlyTokenholders {}
 
     function () returns (bool success);
@@ -413,12 +413,12 @@ contract HongCoinInterface {
 
 
 
-// The HongCoin contract itself
-contract HongCoin is HongCoinInterface, Token, TokenCreation {
+// The HONG contract itself
+contract HONG is HONGInterface, Token, TokenCreation {
 
-    function HongCoin(
+    function HONG(
         address _managementBodyAddress,
-        HongCoin_Creator _hongcoinCreator,
+        HONG_Creator _hongcoinCreator,
         uint _minTokensToCreate,
         uint _maxTokensToCreate,
         // A variable to be set 30 days after contract execution.
@@ -429,10 +429,10 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
         managementBodyAddress = _managementBodyAddress;
         hongcoinCreator = _hongcoinCreator;
         ReturnAccount = new ManagedAccount(address(this), false);
-        HongCoinRewardAccount = new ManagedAccount(address(this), false);
+        HONGRewardAccount = new ManagedAccount(address(this), false);
         if (address(ReturnAccount) == 0)
             throw;
-        if (address(HongCoinRewardAccount) == 0)
+        if (address(HONGRewardAccount) == 0)
             throw;
 
     }
@@ -615,17 +615,17 @@ contract HongCoin is HongCoinInterface, Token, TokenCreation {
     }
 }
 
-contract HongCoin_Creator {
-    function createHongCoin(
+contract HONG_Creator {
+    function createHONG(
         address _managementBodyAddress,
         uint _minTokensToCreate,
         uint _maxTokensToCreate,
         uint _closingTime
-    ) returns (HongCoin _newHongCoin) {
+    ) returns (HONG _newHONG) {
 
-        return new HongCoin(
+        return new HONG(
             _managementBodyAddress,
-            HongCoin_Creator(this),
+            HONG_Creator(this),
             _minTokensToCreate,
             _maxTokensToCreate,
             _closingTime
