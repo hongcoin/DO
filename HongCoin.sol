@@ -143,6 +143,10 @@ contract GovernanceInterface {
         // Only call harvest() in the final fiscal year
         if (currentFiscalYear < 4) throw; _
     }
+    modifier noFreezeAtFinalFiscalYear() {
+        // Token holders cannot freeze fund at the 4th Fiscal Year after passing `kickoff(4)` voting
+        if (currentFiscalYear >= 4) throw; _
+    }
 
     bool public isDayThirtyChecked;
     bool public isDaySixtyChecked;
@@ -514,7 +518,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return true;
     }
 
-    function freeze() onlyTokenholders noEther returns (bool _vote){
+    function freeze() onlyTokenholders noEther noFreezeAtFinalFiscalYear returns (bool _vote){
         // prevent duplicate voting from the same token holder
         if(votedFreeze[msg.sender]){
             throw;
