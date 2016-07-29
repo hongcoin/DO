@@ -136,6 +136,13 @@ contract GovernanceInterface {
     // This value is automatically set, and CANNOT be reversed.
     bool public isFundLocked;
     modifier notLocked() {if (isFundLocked) throw; _}
+    modifier onlyHarvestEnabled() {if (!isHarvestEnabled) throw; _}
+    modifier onlyDistributionNotReady() {if (isDistributionReady) throw; _}
+    modifier onlyDistributionReady() {if (!isDistributionReady) throw; _}
+    modifier onlyFinalFiscalYear() {
+        // Only call harvest() in the final fiscal year
+        if (currentFiscalYear < 4) throw; _
+    }
 
     bool public isDayThirtyChecked;
     bool public isDaySixtyChecked;
@@ -301,14 +308,8 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return tokensCreated >= maxTokensToCreate;
     }
 
-    function mgmtDistribute() noEther onlyManagementBody returns (bool){
+    function mgmtDistribute() noEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotReady returns (bool){
 
-        if(!isHarvestEnabled){
-            throw;
-        }
-        if(isDistributionReady){
-            throw;
-        }
         // transfer all balance from the following accounts
         // (1) HONG main account,
         // (2) ManagementFeePoolWallet,
@@ -373,6 +374,17 @@ contract HONGInterface {
     // we do not have grace period. Once the goal is reached, the fund is secured
 
     address public managementBodyAddress;
+
+    modifier onlyVoteHarvestOnce() {
+        // prevent duplicate voting from the same token holder
+        if(votedHarvest[msg.sender]){throw;}
+        _
+    }
+    modifier onlyCollectOnce() {
+        // prevent return being collected by the same token holder
+        if(returnCollected[msg.sender]){throw;}
+        _
+    }
 
     // 3 most important votings in blockchain
     mapping (uint => mapping (address => bool)) public votedKickoff;
@@ -539,12 +551,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return false;
     }
 
-    function harvest() onlyTokenholders noEther returns (bool _vote){
-        // Only call harvest() 3 Years after ICO ends
-        if(closingTime + 1095 days < now){throw;}
-
-        // prevent duplicate voting from the same token holder
-        if(votedHarvest[msg.sender]){throw;}
+    function harvest() onlyTokenholders noEther onlyFinalFiscalYear onlyVoteHarvestOnce returns (bool _vote){
 
         votedHarvest[msg.sender] = true;
 
@@ -556,13 +563,8 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return true;
     }
 
-    function collectReturn() onlyTokenholders noEther returns (bool _success){
+    function collectReturn() onlyTokenholders noEther onlyDistributionReady onlyCollectOnce returns (bool _success){
         // transfer all tokens in ReturnAccount back to Token Holder's account
-
-        if(!isDistributionReady){throw;}
-
-        // prevent return being collected by the same token holder
-        if(returnCollected[msg.sender]){throw;}
 
         // Formula:  valueToReturn =  unit price * 0.8 * (tokens owned / total tokens created)
         uint valueToReturn = ReturnAccount.accumulatedInput() * 8 / 10 * balances[msg.sender] / tokensCreated;
