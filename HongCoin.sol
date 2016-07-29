@@ -36,6 +36,7 @@ contract Token is TokenInterface {
     // Protects users by preventing the execution of method calls that
     // inadvertently also transferred ether
     modifier noEther() {if (msg.value > 0) throw; _}
+    modifier hasEther() {if (msg.value <= 0) throw; _}
 
     function balanceOf(address _owner) constant returns (uint256 balance) {
         return balances[_owner];
@@ -102,18 +103,15 @@ contract ManagedAccount is ManagedAccountInterface{
  * Token Creation contract, similar to other organization,for issuing tokens and initialize
  * its ether fund.
 */
-
-
 contract TokenCreationInterface {
 
     address public managementBodyAddress;
     uint public closingTime;
     uint public minTokensToCreate;
     uint public maxTokensToCreate;
-    bool public isMinTokenReached;
-    bool public isMaxTokenReached;
     ManagedAccount public extraBalance;
     mapping (address => uint256) weiGiven;
+    mapping (address => uint256) taxPaid;
 
     function createTokenProxy(address _tokenHolder) returns (bool success);
     function refund();
@@ -131,6 +129,7 @@ contract GovernanceInterface {
     // The variable indicating whether the fund has achieved the inital goal or not.
     // This value is automatically set, and CANNOT be reversed.
     bool public isFundLocked;
+    modifier notLocked() {if (isFundLocked) throw; _}
 
     bool public isDayThirtyChecked;
     bool public isDaySixtyChecked;
@@ -185,65 +184,51 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         extraBalance = new ManagedAccount(address(this), true);
     }
 
-    function createTokenProxy(address _tokenHolder) returns (bool success) {
-        // 1: Pre-Conditions
-        if (isFundLocked) throw;
-        if (isMaxTokenReached) throw;
-        if (msg.value <= 0) throw;
+    function createTokenProxy(address _tokenHolder) notLocked hasEther returns (bool success) {
 
-        // 2: Business logic (but no state changes)
+        // Business logic (but no state changes)
         // setup transaction details
         var weiPerToken = divisor() / 100;
         uint256 tokensRequested = msg.value / weiPerToken;
         uint256 tokensToSupply = tokensRequested;
         uint256 weiToAccept = msg.value;
         uint256 weiToRefund = 0;
+        bool wasMinTokensReached = isMinTokensReached();
 
         // cap sale if there aren't enough tokens to sell
         uint256 tokensAvailable = maxTokensToCreate - tokensCreated;
-        bool doLockFund = false;
         if (tokensToSupply > tokensAvailable) {
             tokensToSupply = tokensAvailable;
             weiToAccept = tokensToSupply * weiPerToken;
             weiToRefund = msg.value - weiToAccept;
-            doLockFund = true;
         }
-
-        // 3: State Changes (no external calls)
-        if (doLockFund) isFundLocked = true;
 
         // when the caller is paying more than 1 wei per token, the extra is basically a tax.
         uint256 totalTaxLevied = weiToAccept - tokensToSupply;
+
+        // State Changes (no external calls)
         balances[_tokenHolder] += tokensToSupply;
         tokensCreated += tokensToSupply;
         weiGiven[_tokenHolder] += weiToAccept;
-
-        bool wasMinTokenReached = isMinTokenReached;
-        if (tokensCreated >= minTokensToCreate && !isMinTokenReached) {
-            isMinTokenReached = true;
-        }
-        if (tokensCreated >= maxTokensToCreate && !isMaxTokenReached) {
-            isMaxTokenReached = true;
-        }
+        isFundLocked = isMaxTokensReached();
 
         // if we've reached the 30 day mark, try to lock the fund
-        if (!isFundLocked && !isDayThirtyChecked && now >= closingTime) {
-            isFundLocked = isMinTokenReached;
+        if (!isFundLocked && !isDayThirtyChecked && (now >= closingTime)) {
+            if (isMinTokensReached()) {
+                isFundLocked = true;
+            }
             isDayThirtyChecked = true;
         }
 
         // if we've reached the 60 day mark, try to lock the fund
         if (!isFundLocked && !isDaySixtyChecked && (now >= (closingTime + 30 days))) {
-            isFundLocked = isMinTokenReached;
+            if (isMinTokensReached()) {
+                isFundLocked = true;
+            }
             isDaySixtyChecked = true;
         }
 
-        // 4: Events
-        evCreatedToken(_tokenHolder, tokensToSupply);
-        if (!wasMinTokenReached && isMinTokenReached) evMinTokensReached(tokensCreated);
-        if (isFundLocked) evLockFund();
-
-        // 5: External calls
+        // External calls
         if (totalTaxLevied > 0) {
             if (!extraBalance.send(totalTaxLevied))
                 throw;
@@ -255,38 +240,59 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             if (!msg.sender.send(weiToRefund))
                 throw;
         }
+
+        // Events.  Safe to publish these now that we know if all worked
+        evCreatedToken(_tokenHolder, tokensToSupply);
+        if (!wasMinTokensReached && isMinTokensReached()) evMinTokensReached(tokensCreated);
+        if (isFundLocked) evLockFund();
         return true;
     }
 
+    function refund() noEther notLocked onlyTokenholders {
+        // 1: Preconditions
+        if (weiGiven[msg.sender] < 0) throw;
+        if (taxPaid[msg.sender] < 0) throw;
+        if (balances[msg.sender] > tokensCreated) throw;
 
-    function refund() noEther {
-        // define the refund condition: only when the fund minTokensToCreate is not reached
-        if (isFundLocked) {
-            throw;
-        }
-
-        // TODO possibly there is some transaction cost for the refund
-
-        // Get extraBalance - will only succeed when called for the first time
-        // TODO: Do we need this here, or can we have a separate function?  What if this succeeds but the
-        // refund to the sender fails and we throw later on?  Or, what if this fails, can the sender ever
-        // get a refund?
-        if (extraBalance.balance >= extraBalance.accumulatedInput())
-            extraBalance.payOut(address(this), extraBalance.accumulatedInput());
-
-        // Always change state before calling the sender, throw if the call fails
+        // 2: Business logic
+        bool wasMinTokensReached = isMinTokensReached();
         var tmpWeiGiven = weiGiven[msg.sender];
-        tokensCreated -= balances[msg.sender];
+        var tmpTaxPaidBySender = taxPaid[msg.sender];
+        var tmpSenderBalance = balances[msg.sender];
+
+        var transactionCost = 0; // TODO possibly there is some transaction cost for the refund
+        var amountToRefund = tmpWeiGiven - transactionCost;
+
+        // 3: state changes.
         balances[msg.sender] = 0;
         weiGiven[msg.sender] = 0;
+        taxPaid[msg.sender] = 0;
+        tokensCreated -= tmpSenderBalance;
 
-        if (msg.sender.call.value(tmpWeiGiven)()) {
-            evRefund(msg.sender, tmpWeiGiven, true);
-        }
-        else {
-            evRefund(msg.sender, tmpWeiGiven, false);
+        // 4: external calls
+        // Pull taxes paid back into this contract (they would have been paid into the extraBalance account)
+        if (!extraBalance.payOut(address(this), tmpTaxPaidBySender)) {
+            evRefund(msg.sender, amountToRefund, false);
             throw;
         }
+
+        // If that works, then do a refund
+        if (!msg.sender.send(amountToRefund)) {
+            evRefund(msg.sender, amountToRefund, false);
+            throw;
+        }
+
+        evRefund(msg.sender, amountToRefund, true);
+        if (!wasMinTokensReached && isMinTokensReached()) evMinTokensReached(tokensCreated);
+    }
+
+    // Using a function rather than a state variable, as it reduces the risk of inconsistent state
+    function isMinTokensReached() returns (bool) {
+        return tokensCreated >= minTokensToCreate;
+    }
+
+    function isMaxTokensReached() returns (bool) {
+        return tokensCreated >= maxTokensToCreate;
     }
 
     function mgmtDistribute() noEther onlyManagementBody returns (bool){
