@@ -11,19 +11,19 @@ The contract is based on the white paper of http://HongCoin.org, and the collabo
 ### Flux of the money in _The HONG_
 ![Flux of the money in _The HONG_](images/HongCoin_moneyFlow.png)
 
-All token holders calling  `harvest()`  will receive an amount calculated by:
+When the final voting of `harvest()` is approved, all token holders calling will harvest the fund with an amount calculated by:
 
-Total balance in `harvestAccount` x 80% x (Token owned / Total token issued including ICO and bounty program)
+Total balance in `ReturnAccount` x 80% x (Token owned / Total token issued including ICO and bounty program)
+
+
+### More details
+Check out our [Wiki page](https://github.com/hongcoin/DO/wiki) for details.
 
 
 ### How to contribute
 That's easy! Fork this repo and submit a pull request!
 
 Join our [Slack channel](http://slack.hongcoin.org) to get the latest progress. We appreciate your contribution and award you _The HONG_ tokens with our bounty program!
-
-
-### More details
-Check out our [Wiki page](https://github.com/hongcoin/DO/wiki) for details.
 
 
 ### Contact Us
