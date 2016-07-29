@@ -139,6 +139,10 @@ contract GovernanceInterface {
     modifier onlyHarvestEnabled() {if (!isHarvestEnabled) throw; _}
     modifier onlyDistributionNotReady() {if (isDistributionReady) throw; _}
     modifier onlyDistributionReady() {if (!isDistributionReady) throw; _}
+    modifier onlyCanIssueBountyToken(uint _amount) {
+        if (bountyTokensCreated + _amount > 2000000000000000000000000){throw;}  // 1eth(1000000000000000000) * 2M (2000000)
+        _
+    }
     modifier onlyFinalFiscalYear() {
         // Only call harvest() in the final fiscal year
         if (currentFiscalYear < 4) throw; _
@@ -151,6 +155,7 @@ contract GovernanceInterface {
     bool public isDayThirtyChecked;
     bool public isDaySixtyChecked;
 
+    uint256 public bountyTokensCreated;
     uint public currentFiscalYear;
     uint public lastKickoffDate;
     mapping (uint => bool) public isKickoffEnabled;
@@ -164,8 +169,9 @@ contract GovernanceInterface {
 
     // TODO move this away: the progress should be automatically triggered inside kickoff(x)
     function reserveToWallet(address _reservedWallet) returns (bool);
+    function issueManagementFee(uint _amount) returns (bool);
 
-    function mgmtIssueManagementFee(uint _amount) returns (bool);
+    function mgmtIssueBountyToken(address _recipientAddress, uint _amount) returns (bool);
     function mgmtDistribute() returns (bool);
 
     function mgmtInvestProject(
@@ -173,7 +179,8 @@ contract GovernanceInterface {
         uint _amount
     ) returns (bool);
 
-    event evMgmtIssueManagementFee(uint _amount, bool _success);
+    event evIssueManagementFee(uint _amount, bool _success);
+    event evMgmtIssueBountyToken(address _recipientAddress, uint _amount, bool _success);
     event evMgmtDistributed(uint256 _amount, bool _success);
     event evMgmtInvestProject(address _projectWallet, uint _amount, bool result);
 
@@ -312,6 +319,19 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return tokensCreated >= maxTokensToCreate;
     }
 
+    function mgmtIssueBountyToken(
+        address _recipientAddress,
+        uint _amount
+    ) noEther onlyManagementBody onlyCanIssueBountyToken(_amount) returns (bool){
+        // send token to the specified address
+        balances[_recipientAddress] += _amount;
+        bountyTokensCreated += _amount;
+
+        // event
+        evMgmtIssueBountyToken(_recipientAddress, _amount, true);
+
+    }
+
     function mgmtDistribute() noEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotReady returns (bool){
 
         // transfer all balance from the following accounts
@@ -338,12 +358,12 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // TODO move this away: the progress should be automatically triggered inside kickoff(x)
         return true;
     }
-    function mgmtIssueManagementFee(uint _amount) onlyManagementBody returns (bool success) {
+    function issueManagementFee(uint _amount) onlyManagementBody returns (bool success) {
         // Send 2% of Management fee from _reservedWallet
 
         // TODO move this away: the progress should be automatically triggered inside kickoff(x)
         // TODO
-        evMgmtIssueManagementFee(1, true);
+        evIssueManagementFee(1, true);
         return true;
     }
 
@@ -500,7 +520,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         votedKickoff[_fiscal][msg.sender] = true;
 
         supportKickoffQuorum[_fiscal] += balances[msg.sender];
-        if(supportKickoffQuorum[_fiscal] * 4 > tokensCreated){ // 25%
+        if(supportKickoffQuorum[_fiscal] * 4 > (tokensCreated + bountyTokensCreated)){ // 25%
             if(_fiscal == 1){
                 isInitialKickoffEnabled = true;
 
@@ -527,7 +547,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         votedFreeze[msg.sender] = true;
 
         supportFreezeQuorum += balances[msg.sender];
-        if(supportFreezeQuorum * 2 > tokensCreated){ // 50%
+        if(supportFreezeQuorum * 2 > (tokensCreated + bountyTokensCreated)){ // 50%
             isFreezeEnabled = true;
 
             // TODO freeze immediately
@@ -560,7 +580,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         votedHarvest[msg.sender] = true;
 
         supportHarvestQuorum += balances[msg.sender];
-        if(supportHarvestQuorum * 2 > tokensCreated){ // 50%
+        if(supportHarvestQuorum * 2 > (tokensCreated + bountyTokensCreated)){ // 50%
             isHarvestEnabled = true;
             evHarvest();
         }
@@ -571,7 +591,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         // transfer all tokens in ReturnAccount back to Token Holder's account
 
         // Formula:  valueToReturn =  unit price * 0.8 * (tokens owned / total tokens created)
-        uint valueToReturn = ReturnAccount.accumulatedInput() * 8 / 10 * balances[msg.sender] / tokensCreated;
+        uint valueToReturn = ReturnAccount.accumulatedInput() * 8 / 10 * balances[msg.sender] / (tokensCreated + bountyTokensCreated);
         returnCollected[msg.sender] = true;
 
         if(!ReturnAccount.send(valueToReturn)){
