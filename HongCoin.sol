@@ -408,10 +408,6 @@ contract HONGInterface {
 
     HONG_Creator public hongcoinCreator;
 
-
-    // Used to restrict access to certain functions to only HONG Token Holders
-    modifier onlyTokenholders {}
-
     function () returns (bool success);
 
     function kickoff(uint _fiscal) returns(bool _result);
