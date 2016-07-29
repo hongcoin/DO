@@ -29,6 +29,12 @@ contract TokenInterface {
     function transfer(address _to, uint256 _amount) returns (bool success);
 
     event evTransfer(address indexed _from, address indexed _to, uint256 _amount);
+
+    // Modifier that allows only shareholders to trigger
+    modifier onlyTokenholders {
+        if (balanceOf(msg.sender) == 0) throw;
+            _
+    }
 }
 
 
@@ -409,12 +415,6 @@ contract HongCoinInterface {
 
 // The HongCoin contract itself
 contract HongCoin is HongCoinInterface, Token, TokenCreation {
-
-    // Modifier that allows only shareholders to trigger
-    modifier onlyTokenholders {
-        if (balanceOf(msg.sender) == 0) throw;
-            _
-    }
 
     function HongCoin(
         address _managementBodyAddress,
