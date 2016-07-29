@@ -37,10 +37,6 @@ contract Token is TokenInterface {
     // inadvertently also transferred ether
     modifier noEther() {if (msg.value > 0) throw; _}
 
-    modifier onlyManagementBody {
-        if(msg.sender == address(managementBodyAddress)) _
-    }
-
     function balanceOf(address _owner) constant returns (uint256 balance) {
         return balances[_owner];
     }
@@ -171,6 +167,11 @@ contract GovernanceInterface {
 
 
 contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
+    modifier onlyManagementBody {
+        if(msg.sender == address(managementBodyAddress)) _
+    }
+
+
     function TokenCreation(
         address _managementBodyAddress,
         uint _minTokensToCreate,
