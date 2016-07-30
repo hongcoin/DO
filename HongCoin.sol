@@ -484,9 +484,9 @@ contract HONG is HONGInterface, Token, TokenCreation {
     // TODO: what should these values be?  Should they be set in the constructor?
     uint256 unfreezeQuorumThresholdPercent = 40;
     uint256 freezeQuorumThresholdPercent = 60;
-	uint256 freezeStateChangeDelay = 7 days;
+    uint256 freezeStateChangeDelay = 7 days;
     
-	modifier freezeStateTransitionSupport() {
+    modifier freezeStateTransitionSupport() {
         if (fundState == FundState.PendingFreeze && now >= freezeStateChangeDeadline) {
             moveToFrozen();
         }
@@ -501,7 +501,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
             moveToPendingFreeze();
         }
     }
-	
+    
     function HONG(
         address _managementBodyAddress,
         HONG_Creator _hongcoinCreator,
