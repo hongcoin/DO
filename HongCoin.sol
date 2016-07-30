@@ -177,7 +177,7 @@ contract GovernanceInterface {
 
     function mgmtIssueBountyToken(address _recipientAddress, uint _amount) returns (bool);
     function mgmtDistribute() returns (bool);
-    function mgmtClearPendingFreeze();
+    function mgmtResolvePendingFreezeState();
 
     function mgmtInvestProject(
         address _projectWallet,
@@ -588,7 +588,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return true;
     }
 
-    function mgmtClearPendingFreeze() noEther onlyManagementBody freezeStateTransitionSupport {
+    function mgmtResolvePendingFreezeState() noEther onlyManagementBody freezeStateTransitionSupport {
         // We need a way to check freeze after the deadline voting without forcing a call to freeze or unFreeze,
         // which will only work if the caller is changing their vote.
     }
