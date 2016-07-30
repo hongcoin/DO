@@ -488,10 +488,20 @@ contract HONG is HONGInterface, Token, TokenCreation {
     
     modifier freezeStateTransitionSupport() {
         if (fundState == FundState.PendingFreeze && now >= freezeStateChangeDeadline) {
-            moveToFrozen();
+            if (freezeQuorumExists()) {
+                moveToFrozen();
+            }
+            else {
+                cancelPendingFreeze();
+            }
         }
         else if (fundState == FundState.PendingActive && now >= freezeStateChangeDeadline) {
-            moveToActive();
+            if (unFreezeQuorumExists()) {
+                moveToActive();
+            }
+            else {
+                cancelPendingActivate();
+            }
         }
         _
         if (fundState == FundState.Frozen && unFreezeQuorumExists()) {
@@ -623,6 +633,12 @@ contract HONG is HONGInterface, Token, TokenCreation {
         // TODO transfer funds from ReturnAccount ??
 
         isDistributionReady = false;
+    }
+
+    function cancelPendingFreeze() internal assertFundState(FundState.PendingFreeze) thenSetState(FundState.Active) {
+    }
+
+    function cancelPendingActivate() internal assertFundState(FundState.PendingActive) thenSetState(FundState.Frozen) {
     }
 
     function moveToFrozen() internal assertFundState(FundState.PendingFreeze) thenSetState(FundState.Frozen) {
