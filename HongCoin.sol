@@ -339,6 +339,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // (1) HONG main account,
         // (2) ManagementFeePoolWallet,
         // (3) HONGRewardAccount
+        // (4) HONGReservedWallet
         // to ReturnAccount
 
         // reserve 20% of the fund to Management Body
@@ -426,6 +427,7 @@ contract HONGInterface {
 
     ManagedAccount public ReturnAccount;
     ManagedAccount public HONGRewardAccount;
+    ManagedAccount public HONGReservedWallet;
 
     HONG_Creator public hongcoinCreator;
 
@@ -463,9 +465,12 @@ contract HONG is HONGInterface, Token, TokenCreation {
         hongcoinCreator = _hongcoinCreator;
         ReturnAccount = new ManagedAccount(address(this), false);
         HONGRewardAccount = new ManagedAccount(address(this), false);
+        HONGReservedWallet = new ManagedAccount(address(this), false);
         if (address(ReturnAccount) == 0)
             throw;
         if (address(HONGRewardAccount) == 0)
+            throw;
+        if (address(HONGReservedWallet) == 0)
             throw;
 
     }
