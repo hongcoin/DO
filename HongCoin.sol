@@ -403,7 +403,7 @@ contract HONGInterface {
 
     modifier onlyVoteHarvestOnce() {
         // prevent duplicate voting from the same token holder
-        if(votedHarvest[msg.sender]){throw;}
+        if(votedHarvest[msg.sender] > 0){throw;}
         _
     }
     modifier onlyCollectOnce() {
@@ -413,9 +413,9 @@ contract HONGInterface {
     }
 
     // 3 most important votings in blockchain
-    mapping (uint => mapping (address => bool)) public votedKickoff;
-    mapping (address => bool) public votedFreeze;
-    mapping (address => bool) public votedHarvest;
+    mapping (uint => mapping (address => uint)) public votedKickoff;
+    mapping (address => uint) public votedFreeze;
+    mapping (address => uint) public votedHarvest;
     mapping (address => bool) public returnCollected;
 
     mapping (uint => uint256) public supportKickoffQuorum;
@@ -487,7 +487,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
      */
     function kickoff(uint _fiscal) onlyTokenHolders noEther returns (bool _vote) {
         // prevent duplicate voting from the same token holder
-        if(votedKickoff[_fiscal][msg.sender]){
+        if(votedKickoff[_fiscal][msg.sender] > 0){
             throw;
         }
 
@@ -519,9 +519,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
         }
 
 
-        votedKickoff[_fiscal][msg.sender] = true;
-
+        supportKickoffQuorum[_fiscal] -= votedKickoff[_fiscal][msg.sender];
         supportKickoffQuorum[_fiscal] += balances[msg.sender];
+        votedKickoff[_fiscal][msg.sender] = balances[msg.sender];
+
         if(supportKickoffQuorum[_fiscal] * 4 > (tokensCreated + bountyTokensCreated)){ // 25%
             if(_fiscal == 1){
                 isInitialKickoffEnabled = true;
@@ -542,13 +543,14 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
     function freeze() onlyTokenHolders noEther noFreezeAtFinalFiscalYear returns (bool _vote){
         // prevent duplicate voting from the same token holder
-        if(votedFreeze[msg.sender]){
+        if(votedFreeze[msg.sender] > 0){
             throw;
         }
 
-        votedFreeze[msg.sender] = true;
-
+        supportFreezeQuorum -= votedFreeze[msg.sender];
         supportFreezeQuorum += balances[msg.sender];
+        votedFreeze[msg.sender] = balances[msg.sender];
+
         if(supportFreezeQuorum * 2 > (tokensCreated + bountyTokensCreated)){ // 50%
             isFreezeEnabled = true;
 
@@ -563,7 +565,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
     function unFreeze() onlyTokenHolders noEther returns (bool _vote){
         // prevent duplicate voting from the same token holder
-        if(!votedFreeze[msg.sender]){
+        if(votedFreeze[msg.sender] == 0){
             throw;
         }
 
@@ -572,16 +574,17 @@ contract HONG is HONGInterface, Token, TokenCreation {
             throw;
         }
 
-        votedFreeze[msg.sender] = false;
+        votedFreeze[msg.sender] = 0;
         supportFreezeQuorum -= balances[msg.sender];
         return false;
     }
 
     function harvest() onlyTokenHolders noEther onlyFinalFiscalYear onlyVoteHarvestOnce returns (bool _vote){
 
-        votedHarvest[msg.sender] = true;
-
+        supportHarvestQuorum -= votedHarvest[msg.sender];
         supportHarvestQuorum += balances[msg.sender];
+        votedHarvest[msg.sender] = balances[msg.sender];
+
         if(supportHarvestQuorum * 2 > (tokensCreated + bountyTokensCreated)){ // 50%
             isHarvestEnabled = true;
             evHarvest();
@@ -632,12 +635,23 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
         // Reset kickoff voting for the next fiscal year from this address to false
         if(currentFiscalYear < 4){
-            votedKickoff[currentFiscalYear+1][msg.sender] = false;
+            if(votedKickoff[currentFiscalYear+1][msg.sender] > _value){
+                votedKickoff[currentFiscalYear+1][msg.sender] -= _value;
+            }
         }
 
         // Reset Freeze and Harvest voting from this address to false
-        votedFreeze[msg.sender] = false;
-        votedHarvest[msg.sender] = false;
+        if(votedFreeze[msg.sender] > _value){
+            votedFreeze[msg.sender] -= _value;
+        }else{
+            votedFreeze[msg.sender] = 0;
+        }
+
+        if(votedHarvest[msg.sender] > _value){
+            votedHarvest[msg.sender] -= _value;
+        }else{
+            votedHarvest[msg.sender] = 0;
+        }
 
         if (isFundLocked && super.transfer(_to, _value)) {
             return true;
