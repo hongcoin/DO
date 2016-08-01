@@ -31,7 +31,7 @@ contract TokenInterface {
     event evTransfer(address indexed _from, address indexed _to, uint256 _amount);
 
     // Modifier that allows only shareholders to trigger
-    modifier onlyTokenholders {
+    modifier onlyTokenHolders {
         if (balanceOf(msg.sender) == 0) throw;
             _
     }
@@ -273,7 +273,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return true;
     }
 
-    function refund() noEther notLocked onlyTokenholders {
+    function refund() noEther notLocked onlyTokenHolders {
         // 1: Preconditions
         if (weiGiven[msg.sender] < 0) throw;
         if (taxPaid[msg.sender] < 0) throw;
@@ -478,9 +478,9 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
 
     /*
-     * Voting for some critial steps, on blockchain
+     * Voting for some critical steps, on blockchain
      */
-    function kickoff(uint _fiscal) onlyTokenholders noEther returns (bool _vote) {
+    function kickoff(uint _fiscal) onlyTokenHolders noEther returns (bool _vote) {
         // prevent duplicate voting from the same token holder
         if(votedKickoff[_fiscal][msg.sender]){
             throw;
@@ -535,7 +535,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return true;
     }
 
-    function freeze() onlyTokenholders noEther noFreezeAtFinalFiscalYear returns (bool _vote){
+    function freeze() onlyTokenHolders noEther noFreezeAtFinalFiscalYear returns (bool _vote){
         // prevent duplicate voting from the same token holder
         if(votedFreeze[msg.sender]){
             throw;
@@ -556,7 +556,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return true;
     }
 
-    function unFreeze() onlyTokenholders noEther returns (bool _vote){
+    function unFreeze() onlyTokenHolders noEther returns (bool _vote){
         // prevent duplicate voting from the same token holder
         if(!votedFreeze[msg.sender]){
             throw;
@@ -572,7 +572,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return false;
     }
 
-    function harvest() onlyTokenholders noEther onlyFinalFiscalYear onlyVoteHarvestOnce returns (bool _vote){
+    function harvest() onlyTokenHolders noEther onlyFinalFiscalYear onlyVoteHarvestOnce returns (bool _vote){
 
         votedHarvest[msg.sender] = true;
 
@@ -584,7 +584,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return true;
     }
 
-    function collectReturn() onlyTokenholders noEther onlyDistributionReady onlyCollectOnce returns (bool _success){
+    function collectReturn() onlyTokenHolders noEther onlyDistributionReady onlyCollectOnce returns (bool _success){
         // transfer all tokens in ReturnAccount back to Token Holder's account
 
         // Formula:  valueToReturn =  unit price * 0.8 * (tokens owned / total tokens created)
