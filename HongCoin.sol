@@ -31,7 +31,7 @@ contract TokenInterface {
     event evTransfer(address indexed _from, address indexed _to, uint256 _amount);
 
     // Modifier that allows only shareholders to trigger
-    modifier onlyTokenholders {
+    modifier onlyTokenHolders {
         if (balanceOf(msg.sender) == 0) throw;
             _
     }
@@ -140,6 +140,9 @@ contract GovernanceInterface {
     modifier onlyHarvestEnabled() {if (!isHarvestEnabled) throw; _}
     modifier onlyDistributionNotReady() {if (isDistributionReady) throw; _}
     modifier onlyDistributionReady() {if (!isDistributionReady) throw; _}
+    modifier onlyUnfrozen() { if (isFreezeEnabled) throw; _}
+    modifier onlyFrozen() { if (!isFreezeEnabled) throw; _}
+
     modifier onlyCanIssueBountyToken(uint _amount) {
         if (bountyTokensCreated + _amount > 2000000000000000000000000){throw;}  // 1eth(1000000000000000000) * 2M (2000000)
         _
@@ -174,6 +177,7 @@ contract GovernanceInterface {
 
     function mgmtIssueBountyToken(address _recipientAddress, uint _amount) returns (bool);
     function mgmtDistribute() returns (bool);
+    function mgmtResolvePendingFreezeState();
 
     function mgmtInvestProject(
         address _projectWallet,
@@ -273,7 +277,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return true;
     }
 
-    function refund() noEther notLocked onlyTokenholders {
+    function refund() noEther notLocked onlyTokenHolders {
         // 1: Preconditions
         if (weiGiven[msg.sender] < 0) throw;
         if (taxPaid[msg.sender] < 0) throw;
@@ -432,8 +436,8 @@ contract HONGInterface {
     function () returns (bool success);
 
     function kickoff(uint _fiscal) returns(bool _result);
-    function freeze() returns(bool _result);
-    function unFreeze() returns(bool _result);
+    function freeze();
+    function unFreeze();
     function harvest() returns(bool _result);
 
     function collectReturn() returns(bool _success);
@@ -441,7 +445,35 @@ contract HONGInterface {
     // Trigger the following events when the voting result is available
     event evKickoff(uint _fiscal);
     event evFreeze();
+    event evActive();
+    event evPendingFreezeAsOf(uint freezeDate);
+    event evPendingActiveAsOf(uint activeDate);
     event evHarvest();
+
+    uint freezeStateChangeDeadline;
+    FundState public fundState = FundState.Active;
+    enum FundState {
+        Active,
+        PendingFreeze,
+        Frozen,
+        PendingActive
+    }
+
+    modifier assertFundState(FundState s) {
+        if (fundState != s) throw;
+        _
+    }
+
+    modifier thenSetState(FundState s) {
+        _
+        fundState = s;
+    }
+
+    modifier assertSenderFreezeVote(bool v) {
+        if (votedFreeze[msg.sender] != v)
+            throw;
+        _
+    }
 }
 
 
@@ -449,6 +481,37 @@ contract HONGInterface {
 // The HONG contract itself
 contract HONG is HONGInterface, Token, TokenCreation {
 
+    // TODO: what should these values be?  Should they be set in the constructor?
+    uint256 unfreezeQuorumThresholdPercent = 40;
+    uint256 freezeQuorumThresholdPercent = 60;
+    uint256 freezeStateChangeDelay = 7 days;
+    
+    modifier freezeStateTransitionSupport() {
+        if (fundState == FundState.PendingFreeze && now >= freezeStateChangeDeadline) {
+            if (freezeQuorumExists()) {
+                moveToFrozen();
+            }
+            else {
+                cancelPendingFreeze();
+            }
+        }
+        else if (fundState == FundState.PendingActive && now >= freezeStateChangeDeadline) {
+            if (unFreezeQuorumExists()) {
+                moveToActive();
+            }
+            else {
+                cancelPendingActivate();
+            }
+        }
+        _
+        if (fundState == FundState.Frozen && unFreezeQuorumExists()) {
+            moveToPendingActive();
+        }
+        else if (fundState == FundState.Active && freezeQuorumExists()) {
+            moveToPendingFreeze();
+        }
+    }
+    
     function HONG(
         address _managementBodyAddress,
         HONG_Creator _hongcoinCreator,
@@ -480,7 +543,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
     /*
      * Voting for some critial steps, on blockchain
      */
-    function kickoff(uint _fiscal) onlyTokenholders noEther returns (bool _vote) {
+    function kickoff(uint _fiscal) onlyTokenHolders noEther returns (bool _vote) {
         // prevent duplicate voting from the same token holder
         if(votedKickoff[_fiscal][msg.sender]){
             throw;
@@ -535,44 +598,68 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return true;
     }
 
-    function freeze() onlyTokenholders noEther noFreezeAtFinalFiscalYear returns (bool _vote){
-        // prevent duplicate voting from the same token holder
-        if(votedFreeze[msg.sender]){
-            throw;
-        }
-
-        votedFreeze[msg.sender] = true;
-
-        supportFreezeQuorum += balances[msg.sender];
-        if(supportFreezeQuorum * 2 > (tokensCreated + bountyTokensCreated)){ // 50%
-            isFreezeEnabled = true;
-
-            // TODO freeze immediately
-            // transfer all available fund to ReturnAccount
-
-            isDistributionReady = true;
-            evFreeze();
-        }
-        return true;
+    function mgmtResolvePendingFreezeState() noEther onlyManagementBody freezeStateTransitionSupport {
+        // We need a way to check freeze after the deadline voting without forcing a call to freeze or unFreeze,
+        // which will only work if the caller is changing their vote.
     }
 
-    function unFreeze() onlyTokenholders noEther returns (bool _vote){
-        // prevent duplicate voting from the same token holder
-        if(!votedFreeze[msg.sender]){
-            throw;
-        }
+    function freeze()
+            onlyTokenHolders noEther noFreezeAtFinalFiscalYear assertSenderFreezeVote(false)
+            freezeStateTransitionSupport {
+        votedFreeze[msg.sender] = true;
+        supportFreezeQuorum += balances[msg.sender];
+    }
 
-        if(isFreezeEnabled){
-            // no change to this if the fund is freezed
-            throw;
-        }
-
+    function unFreeze()
+            onlyTokenHolders noEther assertSenderFreezeVote(true)
+            freezeStateTransitionSupport {
         votedFreeze[msg.sender] = false;
         supportFreezeQuorum -= balances[msg.sender];
-        return false;
     }
 
-    function harvest() onlyTokenholders noEther onlyFinalFiscalYear onlyVoteHarvestOnce returns (bool _vote){
+    function moveToPendingFreeze() internal assertFundState(FundState.Active) thenSetState(FundState.PendingFreeze) {
+        freezeStateChangeDeadline = now + freezeStateChangeDelay;
+        evPendingFreezeAsOf(freezeStateChangeDeadline);
+    }
+
+    function moveToPendingActive() internal assertFundState(FundState.Frozen) thenSetState(FundState.PendingActive) {
+        freezeStateChangeDeadline = now + freezeStateChangeDelay;
+        evPendingActiveAsOf(freezeStateChangeDeadline);
+    }
+
+    function moveToActive() internal assertFundState(FundState.PendingActive) thenSetState(FundState.Active) {
+        isFreezeEnabled = false;
+
+        // TODO transfer funds from ReturnAccount ??
+
+        isDistributionReady = false;
+    }
+
+    function cancelPendingFreeze() internal assertFundState(FundState.PendingFreeze) thenSetState(FundState.Active) {
+    }
+
+    function cancelPendingActivate() internal assertFundState(FundState.PendingActive) thenSetState(FundState.Frozen) {
+    }
+
+    function moveToFrozen() internal assertFundState(FundState.PendingFreeze) thenSetState(FundState.Frozen) {
+        isFreezeEnabled = true;
+        // TODO transfer all available fund to ReturnAccount
+
+        isDistributionReady = true;
+        evActive();
+    }
+
+    function unFreezeQuorumExists() returns (bool) {
+        var unfreezeQuorumThreshold = (tokensCreated + bountyTokensCreated) * (unfreezeQuorumThresholdPercent / 100);
+        return supportFreezeQuorum < unfreezeQuorumThreshold;
+    }
+
+    function freezeQuorumExists() returns (bool) {
+        var freezeQuorumThreshold = (tokensCreated + bountyTokensCreated) * (freezeQuorumThresholdPercent / 100);
+        return supportFreezeQuorum >= freezeQuorumThreshold;
+    }
+
+    function harvest() onlyTokenHolders noEther onlyFinalFiscalYear onlyVoteHarvestOnce returns (bool _vote){
 
         votedHarvest[msg.sender] = true;
 
@@ -584,7 +671,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return true;
     }
 
-    function collectReturn() onlyTokenholders noEther onlyDistributionReady onlyCollectOnce returns (bool _success){
+    function collectReturn() onlyTokenHolders noEther onlyDistributionReady onlyCollectOnce returns (bool _success){
         // transfer all tokens in ReturnAccount back to Token Holder's account
 
         // Formula:  valueToReturn =  unit price * 0.8 * (tokens owned / total tokens created)
