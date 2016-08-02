@@ -90,6 +90,10 @@ contract ManagedAccount is ManagedAccountInterface{
         accumulatedInput += msg.value;
     }
 
+    function resetAccumulatedInput(uint amount) {
+        accumulatedInput = amount;
+    }
+
     function payOut(address _recipient, uint _amount) returns (bool) {
         if (msg.sender != owner || msg.value > 0 || (payOwnerOnly && _recipient != owner))
             throw;
@@ -138,6 +142,7 @@ contract GovernanceInterface {
     bool public isFundLocked;
     modifier notLocked() {if (isFundLocked) throw; _}
     modifier onlyHarvestEnabled() {if (!isHarvestEnabled) throw; _}
+    modifier onlyDistributionNotInProgress() {if (isDistributionInProgress) throw; _}
     modifier onlyDistributionNotReady() {if (isDistributionReady) throw; _}
     modifier onlyDistributionReady() {if (!isDistributionReady) throw; _}
     modifier onlyCanIssueBountyToken(uint _amount) {
@@ -163,8 +168,13 @@ contract GovernanceInterface {
     bool public isInitialKickoffEnabled;
     bool public isFreezeEnabled;
     bool public isHarvestEnabled;
+    bool public isDistributionInProgress;
     bool public isDistributionReady;
 
+    ManagedAccount public ReturnAccount;
+    ManagedAccount public HONGRewardAccount;
+    ManagedAccount public HONGReservedWallet;
+    ManagedAccount public ManagementFeePoolWallet;
 
     // define the governance of this organization and critical functions
 
@@ -333,7 +343,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     }
 
-    function mgmtDistribute() noEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotReady returns (bool){
+    function mgmtDistribute() noEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotInProgress onlyDistributionNotReady returns (bool){
 
         // transfer all balance from the following accounts
         // (1) HONG main account,
@@ -342,15 +352,44 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // (4) HONGReservedWallet
         // to ReturnAccount
 
-        // reserve 20% of the fund to Management Body
-        // TODO
+        // And allocate 20% of the fund to ManagementBody
+
+        isDistributionInProgress = true;
+
+        if(!ReturnAccount.call.value(this.balance)()){  // (1) HONG main account
+            throw;
+        }
+        // this.balance = 0 after execution
+
+        if(!ReturnAccount.call.value(address(ManagementFeePoolWallet).balance)()){  // (2) ManagementFeePoolWallet
+            throw;
+        }
+        ManagementFeePoolWallet.resetAccumulatedInput(0);
+
+        if(!ReturnAccount.call.value(address(HONGRewardAccount).balance)()){  // (3) HONGRewardAccount
+            throw;
+        }
+        HONGRewardAccount.resetAccumulatedInput(0);
+
+        if(!ReturnAccount.call.value(address(HONGReservedWallet).balance)()){  // (4) HONGReservedWallet
+            throw;
+        }
+        HONGReservedWallet.resetAccumulatedInput(0);
+
+
+        uint totalBalance = ReturnAccount.accumulatedInput();
+        uint mgmtReservedFund = totalBalance / 5;  // 20% of the total fund
+
+        // transfer fund from ReturnAccount to mgmt Wallet
+        ReturnAccount.send(mgmtReservedFund);
+        ReturnAccount.resetAccumulatedInput(totalBalance - mgmtReservedFund);
 
         // remaining fund: token holder can claim starting from this point
-        // TODO
         isDistributionReady = true;
+        isDistributionInProgress = false;
 
-        // TODO set this the total amount harvested
-        evMgmtDistributed(100, true); // total fund,
+        // the total amount harvested/ to be distributed
+        evMgmtDistributed(totalBalance, true);
         return true;
     }
 
@@ -424,10 +463,6 @@ contract HONGInterface {
 
     mapping (address => uint) public rewardToken;
     uint public totalRewardToken;
-
-    ManagedAccount public ReturnAccount;
-    ManagedAccount public HONGRewardAccount;
-    ManagedAccount public HONGReservedWallet;
 
     HONG_Creator public hongcoinCreator;
 
@@ -541,7 +576,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return true;
     }
 
-    function freeze() onlyTokenHolders noEther noFreezeAtFinalFiscalYear returns (bool _vote){
+    function freeze() onlyTokenHolders noEther noFreezeAtFinalFiscalYear onlyDistributionNotInProgress returns (bool _vote){
         // prevent duplicate voting from the same token holder
         if(votedFreeze[msg.sender] > 0){
             throw;
@@ -554,10 +589,44 @@ contract HONG is HONGInterface, Token, TokenCreation {
         if(supportFreezeQuorum * 2 > (tokensCreated + bountyTokensCreated)){ // 50%
             isFreezeEnabled = true;
 
-            // TODO freeze immediately
-            // transfer all available fund to ReturnAccount
+            // freeze immediately - transfer all balance from the following accounts
+            // (1) HONG main account,
+            // (2) ManagementFeePoolWallet,
+            // (3) HONGRewardAccount
+            // (4) HONGReservedWallet
+            // to ReturnAccount
 
+            isDistributionInProgress = true;
+
+            if(!ReturnAccount.call.value(this.balance)()){  // (1) HONG main account
+                throw;
+            }
+            // this.balance = 0 after execution
+
+            if(!ReturnAccount.call.value(address(ManagementFeePoolWallet).balance)()){  // (2) ManagementFeePoolWallet
+                throw;
+            }
+            ManagementFeePoolWallet.resetAccumulatedInput(0);
+
+            if(!ReturnAccount.call.value(address(HONGRewardAccount).balance)()){  // (3) HONGRewardAccount
+                throw;
+            }
+            HONGRewardAccount.resetAccumulatedInput(0);
+
+            if(!ReturnAccount.call.value(address(HONGReservedWallet).balance)()){  // (4) HONGReservedWallet
+                throw;
+            }
+            HONGReservedWallet.resetAccumulatedInput(0);
+
+
+            uint totalBalance = ReturnAccount.accumulatedInput();
+
+            // remaining fund: token holder can claim starting from this point
             isDistributionReady = true;
+            isDistributionInProgress = false;
+
+            // the total amount to be distributed. No fund will be distributed to ManagementBody in freeze flow.
+            evMgmtDistributed(totalBalance, true);
             evFreeze();
         }
         return true;
