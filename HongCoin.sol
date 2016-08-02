@@ -183,11 +183,6 @@ contract GovernanceInterface {
     ManagedAccount public ManagementFeePoolWallet;
 
     // define the governance of this organization and critical functions
-
-    // TODO move this away: the progress should be automatically triggered inside kickoff(x)
-    function reserveToWallet(address _reservedWallet) returns (bool);
-    function issueManagementFee(uint _amount) returns (bool);
-
     function mgmtIssueBountyToken(address _recipientAddress, uint _amount) returns (bool);
     function mgmtDistribute() returns (bool);
 
@@ -399,21 +394,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return true;
     }
 
-    function reserveToWallet(address _reservedWallet) onlyManagementBody returns (bool success) {
-        // Send 8% for 4 years of Management fee to _reservedWallet
-
-        // TODO move this away: the progress should be automatically triggered inside kickoff(x)
-        return true;
-    }
-    function issueManagementFee(uint _amount) onlyManagementBody returns (bool success) {
-        // Send 2% of Management fee from _reservedWallet
-
-        // TODO move this away: the progress should be automatically triggered inside kickoff(x)
-        // TODO
-        evIssueManagementFee(1, true);
-        return true;
-    }
-
     function divisor() constant returns (uint divisor) {
 
         // Quantity divisor model: based on total quantity of coins issued
@@ -568,16 +548,29 @@ contract HONG is HONGInterface, Token, TokenCreation {
             if(_fiscal == 1){
                 isInitialKickoffEnabled = true;
 
-                // TODO reserveToWallet() 8% of whole fund
+                // transfer fund in extraBalance to main account
+                if (!extraBalance.payOutOwner(extraBalance.accumulatedInput())) {
+                    throw;
+                }
+                // reserve 8% of whole fund to ManagementFeePoolWallet
+                totalInitialBalance = address(this).balance;
+                uint fundToReserve = totalInitialBalance * 8 / 100;
+                if(!ManagementFeePoolWallet.call.value(fundToReserve)()){
+                    throw;
+                }
 
             }
             isKickoffEnabled[_fiscal] = true;
             currentFiscalYear = _fiscal;
             lastKickoffDate = now;
 
-            // TODO transfer 2% annual management fee from reservedWallet to mgmtWallet (external)
+            // transfer 2% annual management fee from reservedWallet to mgmtWallet (external)
+            if(!ManagementFeePoolWallet.payOutOwner(totalInitialBalance * 8 / 100 / 4)){
+                throw;
+            }
 
             evKickoff(_fiscal);
+            evIssueManagementFee(totalInitialBalance * 8 / 100 / 4, true);
         }
         return true;
     }
@@ -688,8 +681,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
             throw;
         }
 
-        // TODO send the balance to _projectWallet
-
+        // send the balance (_amount) to _projectWallet
+        if (!_projectWallet.call.value(_amount)()) {
+            throw;
+        }
 
         // Initiate event
         evMgmtInvestProject(_projectWallet, _amount, true);
