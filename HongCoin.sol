@@ -70,7 +70,6 @@ contract Token is TokenInterface {
 
 contract ManagedAccountInterface {
     address public owner;
-    bool public payOwnerOnly;
     uint public accumulatedInput;
 
     function payOut(address _recipient, uint _amount) returns (bool);
@@ -81,9 +80,8 @@ contract ManagedAccountInterface {
 
 contract ManagedAccount is ManagedAccountInterface{
 
-    function ManagedAccount(address _owner, bool _payOwnerOnly) {
+    function ManagedAccount(address _owner) {
         owner = _owner;
-        payOwnerOnly = _payOwnerOnly;
     }
 
     function() {
@@ -94,8 +92,16 @@ contract ManagedAccount is ManagedAccountInterface{
         accumulatedInput = amount;
     }
 
+    function payOutOwner(uint _amount) returns (bool) {
+        if (owner.call.value(_amount)()) {
+            return true;
+        }else{
+            return false;
+        }
+    }
+
     function payOut(address _recipient, uint _amount) returns (bool) {
-        if (msg.sender != owner || msg.value > 0 || (payOwnerOnly && _recipient != owner))
+        if (msg.sender != owner || msg.value > 0)
             throw;
         if (_recipient.call.value(_amount)()) {
             evPayOut(_recipient, _amount);
@@ -216,7 +222,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         closingTime = _closingTime;
         minTokensToCreate = _minTokensToCreate;
         maxTokensToCreate = _maxTokensToCreate;
-        extraBalance = new ManagedAccount(address(this), true);
+        extraBalance = new ManagedAccount(address(this));
     }
 
     function createTokenProxy(address _tokenHolder) notLocked hasEther returns (bool success) {
@@ -306,7 +312,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // 4: external calls
         // Pull taxes paid back into this contract (they would have been paid into the extraBalance account)
-        if (!extraBalance.payOut(address(this), tmpTaxPaidBySender)) {
+        if (!extraBalance.payOutOwner(tmpTaxPaidBySender)) {
             evRefund(msg.sender, amountToRefund, false);
             throw;
         }
@@ -462,6 +468,7 @@ contract HONGInterface {
     uint256 public supportHarvestQuorum;
 
     mapping (address => uint) public rewardToken;
+    uint public totalInitialBalance;
     uint public totalRewardToken;
 
     HONG_Creator public hongcoinCreator;
@@ -498,14 +505,17 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
         managementBodyAddress = _managementBodyAddress;
         hongcoinCreator = _hongcoinCreator;
-        ReturnAccount = new ManagedAccount(address(this), false);
-        HONGRewardAccount = new ManagedAccount(address(this), false);
-        HONGReservedWallet = new ManagedAccount(address(this), false);
+        ReturnAccount = new ManagedAccount(address(this));
+        HONGRewardAccount = new ManagedAccount(address(this));
+        HONGReservedWallet = new ManagedAccount(address(this));
+        ManagementFeePoolWallet = new ManagedAccount(address(this));
         if (address(ReturnAccount) == 0)
             throw;
         if (address(HONGRewardAccount) == 0)
             throw;
         if (address(HONGReservedWallet) == 0)
+            throw;
+        if (address(ManagementFeePoolWallet) == 0)
             throw;
 
     }
