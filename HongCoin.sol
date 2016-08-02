@@ -152,6 +152,7 @@ contract GovernanceInterface {
     modifier onlyDistributionNotReady() {if (isDistributionReady) throw; _}
     modifier onlyDistributionReady() {if (!isDistributionReady) throw; _}
     modifier onlyCanIssueBountyToken(uint _amount) {
+        // TEST maxBountyToken 2000000000000000000000000
         if (bountyTokensCreated + _amount > 2000000000000000000000000){throw;}  // 1eth(1000000000000000000) * 2M (2000000)
         _
     }
@@ -257,6 +258,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         }
 
         // if we've reached the 60 day mark, try to lock the fund
+        // TEST closingTimeExtensionPeriod = 30 days
         if (!isFundLocked && !isDaySixtyChecked && (now >= (closingTime + 30 days))) {
             if (isMinTokensReached()) {
                 isFundLocked = true;
@@ -402,6 +404,9 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // The number of (base unit) tokens per wei is calculated
         // as `msg.value` * 100 / `divisor`
 
+        // TEST tokensCreated < 100000000000000000000000000
+        // TEST _minTokensToCreate 200000000000000000000000000
+        // TEST _maxTokensToCreate 500000000000000000000000000
         if(tokensCreated < 100000000000000000000000000){ // 1eth(1000000000000000000) * 100M (100000000)
             return 100;
         } else if (tokensCreated < 200000000000000000000000000){
@@ -528,6 +533,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
                 throw;
             }
 
+            // TEST lastKickoffDateBuffer = 304 days
             if(lastKickoffDate + 304 days < now){ // 2 months from the end of the fiscal year
                 // accept voting
             }else{
