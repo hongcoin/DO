@@ -70,7 +70,6 @@ contract Token is TokenInterface {
 
 contract ManagedAccountInterface {
     address public owner;
-    bool public payOwnerOnly;
     uint public accumulatedInput;
 
     function payOut(address _recipient, uint _amount) returns (bool);
@@ -81,9 +80,8 @@ contract ManagedAccountInterface {
 
 contract ManagedAccount is ManagedAccountInterface{
 
-    function ManagedAccount(address _owner, bool _payOwnerOnly) {
+    function ManagedAccount(address _owner) {
         owner = _owner;
-        payOwnerOnly = _payOwnerOnly;
     }
 
     function() {
@@ -94,8 +92,16 @@ contract ManagedAccount is ManagedAccountInterface{
         accumulatedInput = amount;
     }
 
+    function payOutOwner(uint _amount) returns (bool) {
+        if (owner.call.value(_amount)()) {
+            return true;
+        }else{
+            return false;
+        }
+    }
+
     function payOut(address _recipient, uint _amount) returns (bool) {
-        if (msg.sender != owner || msg.value > 0 || (payOwnerOnly && _recipient != owner))
+        if (msg.sender != owner || msg.value > 0)
             throw;
         if (_recipient.call.value(_amount)()) {
             evPayOut(_recipient, _amount);
@@ -177,11 +183,6 @@ contract GovernanceInterface {
     ManagedAccount public ManagementFeePoolWallet;
 
     // define the governance of this organization and critical functions
-
-    // TODO move this away: the progress should be automatically triggered inside kickoff(x)
-    function reserveToWallet(address _reservedWallet) returns (bool);
-    function issueManagementFee(uint _amount) returns (bool);
-
     function mgmtIssueBountyToken(address _recipientAddress, uint _amount) returns (bool);
     function mgmtDistribute() returns (bool);
 
@@ -216,7 +217,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         closingTime = _closingTime;
         minTokensToCreate = _minTokensToCreate;
         maxTokensToCreate = _maxTokensToCreate;
-        extraBalance = new ManagedAccount(address(this), true);
+        extraBalance = new ManagedAccount(address(this));
     }
 
     function createTokenProxy(address _tokenHolder) notLocked hasEther returns (bool success) {
@@ -306,7 +307,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // 4: external calls
         // Pull taxes paid back into this contract (they would have been paid into the extraBalance account)
-        if (!extraBalance.payOut(address(this), tmpTaxPaidBySender)) {
+        if (!extraBalance.payOutOwner(tmpTaxPaidBySender)) {
             evRefund(msg.sender, amountToRefund, false);
             throw;
         }
@@ -393,21 +394,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return true;
     }
 
-    function reserveToWallet(address _reservedWallet) onlyManagementBody returns (bool success) {
-        // Send 8% for 4 years of Management fee to _reservedWallet
-
-        // TODO move this away: the progress should be automatically triggered inside kickoff(x)
-        return true;
-    }
-    function issueManagementFee(uint _amount) onlyManagementBody returns (bool success) {
-        // Send 2% of Management fee from _reservedWallet
-
-        // TODO move this away: the progress should be automatically triggered inside kickoff(x)
-        // TODO
-        evIssueManagementFee(1, true);
-        return true;
-    }
-
     function divisor() constant returns (uint divisor) {
 
         // Quantity divisor model: based on total quantity of coins issued
@@ -462,6 +448,7 @@ contract HONGInterface {
     uint256 public supportHarvestQuorum;
 
     mapping (address => uint) public rewardToken;
+    uint public totalInitialBalance;
     uint public totalRewardToken;
 
     HONG_Creator public hongcoinCreator;
@@ -498,14 +485,17 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
         managementBodyAddress = _managementBodyAddress;
         hongcoinCreator = _hongcoinCreator;
-        ReturnAccount = new ManagedAccount(address(this), false);
-        HONGRewardAccount = new ManagedAccount(address(this), false);
-        HONGReservedWallet = new ManagedAccount(address(this), false);
+        ReturnAccount = new ManagedAccount(address(this));
+        HONGRewardAccount = new ManagedAccount(address(this));
+        HONGReservedWallet = new ManagedAccount(address(this));
+        ManagementFeePoolWallet = new ManagedAccount(address(this));
         if (address(ReturnAccount) == 0)
             throw;
         if (address(HONGRewardAccount) == 0)
             throw;
         if (address(HONGReservedWallet) == 0)
+            throw;
+        if (address(ManagementFeePoolWallet) == 0)
             throw;
 
     }
@@ -558,16 +548,29 @@ contract HONG is HONGInterface, Token, TokenCreation {
             if(_fiscal == 1){
                 isInitialKickoffEnabled = true;
 
-                // TODO reserveToWallet() 8% of whole fund
+                // transfer fund in extraBalance to main account
+                if (!extraBalance.payOutOwner(extraBalance.accumulatedInput())) {
+                    throw;
+                }
+                // reserve 8% of whole fund to ManagementFeePoolWallet
+                totalInitialBalance = address(this).balance;
+                uint fundToReserve = totalInitialBalance * 8 / 100;
+                if(!ManagementFeePoolWallet.call.value(fundToReserve)()){
+                    throw;
+                }
 
             }
             isKickoffEnabled[_fiscal] = true;
             currentFiscalYear = _fiscal;
             lastKickoffDate = now;
 
-            // TODO transfer 2% annual management fee from reservedWallet to mgmtWallet (external)
+            // transfer 2% annual management fee from reservedWallet to mgmtWallet (external)
+            if(!ManagementFeePoolWallet.payOutOwner(totalInitialBalance * 8 / 100 / 4)){
+                throw;
+            }
 
             evKickoff(_fiscal);
+            evIssueManagementFee(totalInitialBalance * 8 / 100 / 4, true);
         }
         return true;
     }
@@ -678,8 +681,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
             throw;
         }
 
-        // TODO send the balance to _projectWallet
-
+        // send the balance (_amount) to _projectWallet
+        if (!_projectWallet.call.value(_amount)()) {
+            throw;
+        }
 
         // Initiate event
         evMgmtInvestProject(_projectWallet, _amount, true);
