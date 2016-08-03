@@ -212,14 +212,10 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function TokenCreation(
         address _managementBodyAddress,
-        // uint _minTokensToCreate,
-        // uint _maxTokensToCreate,
         uint _closingTime) {
 
         managementBodyAddress = _managementBodyAddress;
         closingTime = _closingTime;
-        // minTokensToCreate = _minTokensToCreate;
-        // maxTokensToCreate = _maxTokensToCreate;
         extraBalance = new ManagedAccount(address(this));
     }
 
@@ -491,8 +487,6 @@ contract HONG is HONGInterface, Token, TokenCreation {
     function HONG(
         address _managementBodyAddress,
         HONG_Creator _hongcoinCreator,
-        // uint _minTokensToCreate,
-        // uint _maxTokensToCreate,
         // A variable to be set 30 days after contract execution.
         // There is an extra 30-day period after this date for second round, if it failed to reach for the first deadline.
         uint _closingTime
