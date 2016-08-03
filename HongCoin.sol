@@ -454,6 +454,7 @@ contract HONGInterface {
 
     mapping (address => uint) public rewardToken;
     uint public totalInitialBalance;
+    uint public annualManagementFee;
     uint public totalRewardToken;
 
     HONG_Creator public hongcoinCreator;
@@ -561,6 +562,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
                 // reserve 8% of whole fund to ManagementFeePoolWallet
                 totalInitialBalance = address(this).balance;
                 uint fundToReserve = totalInitialBalance * 8 / 100;
+                annualManagementFee = fundToReserve / 4;
                 if(!ManagementFeePoolWallet.call.value(fundToReserve)()){
                     throw;
                 }
@@ -571,12 +573,12 @@ contract HONG is HONGInterface, Token, TokenCreation {
             lastKickoffDate = now;
 
             // transfer 2% annual management fee from reservedWallet to mgmtWallet (external)
-            if(!ManagementFeePoolWallet.payOutOwner(totalInitialBalance * 8 / 100 / 4)){
+            if(!ManagementFeePoolWallet.payOutOwner(annualManagementFee)){
                 throw;
             }
 
             evKickoff(_fiscal);
-            evIssueManagementFee(totalInitialBalance * 8 / 100 / 4, true);
+            evIssueManagementFee(annualManagementFee, true);
         }
         return true;
     }
