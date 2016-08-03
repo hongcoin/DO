@@ -152,8 +152,10 @@ contract GovernanceInterface {
     modifier onlyDistributionNotReady() {if (isDistributionReady) throw; _}
     modifier onlyDistributionReady() {if (!isDistributionReady) throw; _}
     modifier onlyCanIssueBountyToken(uint _amount) {
-        // TEST maxBountyToken 2000000000000000000000000
-        if (bountyTokensCreated + _amount > 2000000000000000000000000){throw;}  // 1eth(1000000000000000000) * 2M (2000000)
+        // TEST maxBountyTokens 2 * MILLION
+        uint MILLION = 10**6;
+        uint maxBountyTokens = 2 * MILLION;
+        if (bountyTokensCreated + _amount > maxBountyTokens){throw;}
         _
     }
     modifier onlyFinalFiscalYear() {
@@ -210,23 +212,24 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function TokenCreation(
         address _managementBodyAddress,
-        uint _minTokensToCreate,
-        uint _maxTokensToCreate,
         uint _closingTime) {
 
         managementBodyAddress = _managementBodyAddress;
         closingTime = _closingTime;
-        minTokensToCreate = _minTokensToCreate;
-        maxTokensToCreate = _maxTokensToCreate;
         extraBalance = new ManagedAccount(address(this));
     }
 
     function createTokenProxy(address _tokenHolder) notLocked hasEther returns (bool success) {
 
         // Business logic (but no state changes)
+        uint MILLION = 10**6;
+        minTokensToCreate = 100 * MILLION;
+        maxTokensToCreate = 250 * MILLION;
+
         // setup transaction details
-        var weiPerToken = divisor() / 100;
-        uint256 tokensRequested = msg.value / weiPerToken;
+        uint weiPerInitialHONG = 10**16;
+        var weiPerLatestHONG = weiPerInitialHONG * divisor() / 100;
+        uint256 tokensRequested = msg.value / weiPerLatestHONG;
         uint256 tokensToSupply = tokensRequested;
         uint256 weiToAccept = msg.value;
         uint256 weiToRefund = 0;
@@ -236,7 +239,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         uint256 tokensAvailable = maxTokensToCreate - tokensCreated;
         if (tokensToSupply > tokensAvailable) {
             tokensToSupply = tokensAvailable;
-            weiToAccept = tokensToSupply * weiPerToken;
+            weiToAccept = tokensToSupply * weiPerLatestHONG;
             weiToRefund = msg.value - weiToAccept;
         }
 
@@ -404,16 +407,18 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // The number of (base unit) tokens per wei is calculated
         // as `msg.value` * 100 / `divisor`
 
-        // TEST tokensCreated < 100000000000000000000000000
-        // TEST _minTokensToCreate 200000000000000000000000000
-        // TEST _maxTokensToCreate 500000000000000000000000000
-        if(tokensCreated < 100000000000000000000000000){ // 1eth(1000000000000000000) * 100M (100000000)
+        // TEST tokensCreated < 50 * MILLION
+        // TEST _minTokensToCreate 100000000
+        // TEST _maxTokensToCreate 250000000
+        uint MILLION = 10**6;
+
+        if(tokensCreated < 50 * MILLION){
             return 100;
-        } else if (tokensCreated < 200000000000000000000000000){
+        } else if (tokensCreated < 100 * MILLION){
             return 101;
-        } else if (tokensCreated < 300000000000000000000000000){
+        } else if (tokensCreated < 150 * MILLION){
             return 102;
-        } else if (tokensCreated < 400000000000000000000000000){
+        } else if (tokensCreated < 200 * MILLION){
             return 103;
         } else {
             return 104;
@@ -454,6 +459,7 @@ contract HONGInterface {
 
     mapping (address => uint) public rewardToken;
     uint public totalInitialBalance;
+    uint public annualManagementFee;
     uint public totalRewardToken;
 
     HONG_Creator public hongcoinCreator;
@@ -481,12 +487,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
     function HONG(
         address _managementBodyAddress,
         HONG_Creator _hongcoinCreator,
-        uint _minTokensToCreate,
-        uint _maxTokensToCreate,
         // A variable to be set 30 days after contract execution.
         // There is an extra 30-day period after this date for second round, if it failed to reach for the first deadline.
         uint _closingTime
-    ) TokenCreation(_managementBodyAddress, _minTokensToCreate, _maxTokensToCreate, _closingTime) {
+    ) TokenCreation(_managementBodyAddress, _closingTime) {
 
         managementBodyAddress = _managementBodyAddress;
         hongcoinCreator = _hongcoinCreator;
@@ -561,6 +565,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
                 // reserve 8% of whole fund to ManagementFeePoolWallet
                 totalInitialBalance = address(this).balance;
                 uint fundToReserve = totalInitialBalance * 8 / 100;
+                annualManagementFee = fundToReserve / 4;
                 if(!ManagementFeePoolWallet.call.value(fundToReserve)()){
                     throw;
                 }
@@ -571,12 +576,12 @@ contract HONG is HONGInterface, Token, TokenCreation {
             lastKickoffDate = now;
 
             // transfer 2% annual management fee from reservedWallet to mgmtWallet (external)
-            if(!ManagementFeePoolWallet.payOutOwner(totalInitialBalance * 8 / 100 / 4)){
+            if(!ManagementFeePoolWallet.payOutOwner(annualManagementFee)){
                 throw;
             }
 
             evKickoff(_fiscal);
-            evIssueManagementFee(totalInitialBalance * 8 / 100 / 4, true);
+            evIssueManagementFee(annualManagementFee, true);
         }
         return true;
     }
@@ -738,16 +743,12 @@ contract HONG is HONGInterface, Token, TokenCreation {
 contract HONG_Creator {
     function createHONG(
         address _managementBodyAddress,
-        uint _minTokensToCreate,
-        uint _maxTokensToCreate,
         uint _closingTime
     ) returns (HONG _newHONG) {
 
         return new HONG(
             _managementBodyAddress,
             HONG_Creator(this),
-            _minTokensToCreate,
-            _maxTokensToCreate,
             _closingTime
         );
     }
