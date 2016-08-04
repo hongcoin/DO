@@ -162,9 +162,12 @@ contract GovernanceInterface {
         // Only call harvest() in the final fiscal year
         if (currentFiscalYear < 4) throw; _
     }
-    modifier noFreezeAtFinalFiscalYear() {
+    modifier notFinalFiscalYear() {
         // Token holders cannot freeze fund at the 4th Fiscal Year after passing `kickoff(4)` voting
         if (currentFiscalYear >= 4) throw; _
+    }
+    modifier onlyNotFrozen() {
+        if (isFreezeEnabled) throw; _
     }
 
     bool public isDayThirtyChecked;
@@ -404,8 +407,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // as `msg.value` * 100 / `divisor`
 
         // TEST tokensCreated < 50 * MILLION
-        // TEST _minTokensToCreate 100000000
-        // TEST _maxTokensToCreate 250000000
         uint MILLION = 10**6;
 
         if(tokensCreated < 50 * MILLION){
@@ -462,12 +463,12 @@ contract HONGInterface {
 
     function () returns (bool success);
 
-    function kickoff(uint _fiscal) returns(bool _result);
-    function freeze() returns(bool _result);
-    function unFreeze() returns(bool _result);
-    function harvest() returns(bool _result);
+    function kickoff(uint _fiscal);
+    function freeze();
+    function unFreeze();
+    function harvest();
 
-    function collectReturn() returns(bool _success);
+    function collectReturn();
 
     // Trigger the following events when the voting result is available
     event evKickoff(uint _fiscal);
@@ -504,6 +505,8 @@ contract HONG is HONGInterface, Token, TokenCreation {
             throw;
 
         uint MILLION = 10**6;
+        // TEST minTokensToCreate 100 * MILLION
+        // TEST maxTokensToCreate 250 * MILLION
         minTokensToCreate = 100 * MILLION;
         maxTokensToCreate = 250 * MILLION;
 
@@ -519,7 +522,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
     /*
      * Voting for some critical steps, on blockchain
      */
-    function kickoff(uint _fiscal) onlyTokenHolders noEther returns (bool _vote) {
+    function kickoff(uint _fiscal) onlyTokenHolders noEther {
 
         if(!isInitialKickoffEnabled){  // if there is no kickoff() enabled before
             // input of _fiscal have to be the first year
@@ -583,10 +586,9 @@ contract HONG is HONGInterface, Token, TokenCreation {
             evKickoff(_fiscal);
             evIssueManagementFee(annualManagementFee, true);
         }
-        return true;
     }
 
-    function freeze() onlyTokenHolders noEther noFreezeAtFinalFiscalYear onlyDistributionNotInProgress returns (bool _vote){
+    function freeze() onlyTokenHolders noEther notFinalFiscalYear onlyDistributionNotInProgress {
 
         supportFreezeQuorum -= votedFreeze[msg.sender];
         supportFreezeQuorum += balances[msg.sender];
@@ -635,22 +637,15 @@ contract HONG is HONGInterface, Token, TokenCreation {
             evMgmtDistributed(totalBalance, true);
             evFreeze();
         }
-        return true;
     }
 
-    function unFreeze() onlyTokenHolders noEther returns (bool _vote){
-
-        if(isFreezeEnabled){
-            // no change to this if the fund is freezed
-            throw;
-        }
+    function unFreeze() onlyTokenHolders onlyNotFrozen noEther {
 
         supportFreezeQuorum -= votedFreeze[msg.sender];
         votedFreeze[msg.sender] = 0;
-        return false;
     }
 
-    function harvest() onlyTokenHolders noEther onlyFinalFiscalYear onlyVoteHarvestOnce returns (bool _vote){
+    function harvest() onlyTokenHolders noEther onlyFinalFiscalYear onlyVoteHarvestOnce {
 
         supportHarvestQuorum -= votedHarvest[msg.sender];
         supportHarvestQuorum += balances[msg.sender];
@@ -660,10 +655,9 @@ contract HONG is HONGInterface, Token, TokenCreation {
             isHarvestEnabled = true;
             evHarvest();
         }
-        return true;
     }
 
-    function collectReturn() onlyTokenHolders noEther onlyDistributionReady onlyCollectOnce returns (bool _success){
+    function collectReturn() onlyTokenHolders noEther onlyDistributionReady onlyCollectOnce {
         // transfer all tokens in ReturnAccount back to Token Holder's account
 
         // Formula:  valueToReturn =  unit price * 0.8 * (tokens owned / total tokens created)
@@ -673,9 +667,6 @@ contract HONG is HONGInterface, Token, TokenCreation {
         if(!ReturnAccount.send(valueToReturn)){
             throw;
         }
-
-        return true;
-
     }
 
     function mgmtInvestProject(
