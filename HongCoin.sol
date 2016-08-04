@@ -222,10 +222,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function createTokenProxy(address _tokenHolder) notLocked hasEther returns (bool success) {
 
         // Business logic (but no state changes)
-        uint MILLION = 10**6;
-        minTokensToCreate = 100 * MILLION;
-        maxTokensToCreate = 250 * MILLION;
-
         // setup transaction details
         uint weiPerInitialHONG = 10**16;
         var weiPerLatestHONG = weiPerInitialHONG * divisor() / 100;
@@ -243,8 +239,8 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             weiToRefund = msg.value - weiToAccept;
         }
 
-        // when the caller is paying more than 1 wei per token, the extra is basically a tax.
-        uint256 totalTaxLevied = weiToAccept - tokensToSupply;
+        // when the caller is paying more than 10**16 wei (0.01 Ether) per token, the extra is basically a tax.
+        uint256 totalTaxLevied = weiToAccept - tokensToSupply * weiPerInitialHONG;
 
         // State Changes (no external calls)
         balances[_tokenHolder] += tokensToSupply;
@@ -506,6 +502,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
             throw;
         if (address(ManagementFeePoolWallet) == 0)
             throw;
+
+        uint MILLION = 10**6;
+        minTokensToCreate = 100 * MILLION;
+        maxTokensToCreate = 250 * MILLION;
 
     }
 
