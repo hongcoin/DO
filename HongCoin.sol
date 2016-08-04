@@ -166,6 +166,9 @@ contract GovernanceInterface {
         // Token holders cannot freeze fund at the 4th Fiscal Year after passing `kickoff(4)` voting
         if (currentFiscalYear >= 4) throw; _
     }
+    modifier onlyNotFrozen() {
+        if (isFreezeEnabled) throw; _
+    }
 
     bool public isDayThirtyChecked;
     bool public isDaySixtyChecked;
@@ -636,12 +639,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         }
     }
 
-    function unFreeze() onlyTokenHolders noEther {
-
-        if(isFreezeEnabled){
-            // no change to this if the fund is freezed
-            throw;
-        }
+    function unFreeze() onlyTokenHolders onlyNotFrozen noEther {
 
         supportFreezeQuorum -= votedFreeze[msg.sender];
         votedFreeze[msg.sender] = 0;
