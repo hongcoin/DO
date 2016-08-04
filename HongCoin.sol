@@ -404,8 +404,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // as `msg.value` * 100 / `divisor`
 
         // TEST tokensCreated < 50 * MILLION
-        // TEST _minTokensToCreate 100000000
-        // TEST _maxTokensToCreate 250000000
         uint MILLION = 10**6;
 
         if(tokensCreated < 50 * MILLION){
@@ -504,6 +502,8 @@ contract HONG is HONGInterface, Token, TokenCreation {
             throw;
 
         uint MILLION = 10**6;
+        // TEST minTokensToCreate 100 * MILLION
+        // TEST maxTokensToCreate 250 * MILLION
         minTokensToCreate = 100 * MILLION;
         maxTokensToCreate = 250 * MILLION;
 
