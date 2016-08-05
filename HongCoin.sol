@@ -234,7 +234,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         uint weiPerInitialHONG = 10**16;
         var weiPerLatestHONG = weiPerInitialHONG * divisor() / 100;
         uint tokensRequestedWithLatestPrice = msg.value / weiPerLatestHONG;
-        uint tokensToSupplyTemp;
         uint tokensToSupply;
         uint256 weiToAccept = msg.value;
         uint256 weiToRefund = 0;
