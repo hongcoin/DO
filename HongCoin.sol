@@ -351,11 +351,11 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     }
 
-    function mgmtDistribute() noEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotInProgress onlyDistributionNotReady {
+    function mgmtDistribute() noEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotReady {
         distributeDownstream(20);
     }
 
-    function distributeDownstream(uint mgmtPercentage) internal returns (bool){
+    function distributeDownstream(uint mgmtPercentage) internal onlyDistributionNotInProgress {
 
         // transfer all balance from the following accounts
         // (1) HONG main account,
@@ -366,6 +366,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // And allocate 20% of the fund to ManagementBody
 
         // State changes first (even though it feels backwards)
+        isDistributionInProgress = true;
         isDistributionReady = true;
 
         // (1) HONG main account
@@ -376,10 +377,11 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // transfer 20% of returns to mgmt Wallet
         if (mgmtPercentage > 0) ReturnAccount.payPercentageDownstream(mgmtPercentage);
 
+
         // remaining fund: token holder can claim starting from this point
         // the total amount harvested/ to be distributed
         evMgmtDistributed(ReturnAccount.actualBalance(), true);
-        return true;
+        isDistributionInProgress = false;
     }
 
     function payoutBalanceToReturnAccount() internal {
