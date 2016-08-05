@@ -204,7 +204,6 @@ contract GovernanceInterface {
 
     ManagedAccount public ReturnAccount;
     ManagedAccount public HONGRewardAccount;
-    ManagedAccount public HONGReservedWallet;
     ManagedAccount public ManagementFeePoolWallet;
 
     // define the governance of this organization and critical functions
@@ -251,6 +250,10 @@ contract TokenCreation is SafeContract, TokenCreationInterface, Token, Governanc
         uint256 weiToAccept = msg.value;
         uint256 weiToRefund = 0;
         bool wasMinTokensReached = isMinTokensReached();
+
+        // TODO we missed the logic to check amount of tokens to create at the current token price here
+        //
+
 
         // cap sale if there aren't enough tokens to sell
         uint256 tokensAvailable = maxTokensToCreate - tokensCreated;
@@ -373,7 +376,6 @@ contract TokenCreation is SafeContract, TokenCreationInterface, Token, Governanc
         // (1) HONG main account,
         // (2) ManagementFeePoolWallet,
         // (3) HONGRewardAccount
-        // (4) HONGReservedWallet
         // to ReturnAccount
 
         // And allocate 20% of the fund to ManagementBody
@@ -385,7 +387,6 @@ contract TokenCreation is SafeContract, TokenCreationInterface, Token, Governanc
         payoutBalanceToReturnAccount();
         ManagementFeePoolWallet.payBalanceDownstream();
         HONGRewardAccount.payBalanceDownstream();
-        HONGReservedWallet.payBalanceDownstream();
 
         // transfer 20% of returns to mgmt Wallet
         if (mgmtPercentage > 0) ReturnAccount.payPercentageDownstream(mgmtPercentage);
@@ -493,13 +494,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
         hongcoinCreator = _hongcoinCreator;
         ReturnAccount = new ManagedAccount(address(this), managementBodyAddress);
         HONGRewardAccount = new ManagedAccount(address(this), address(ReturnAccount));
-        HONGReservedWallet = new ManagedAccount(address(this), address(ReturnAccount));
         ManagementFeePoolWallet = new ManagedAccount(address(this), address(ReturnAccount));
         if (address(ReturnAccount) == 0)
             throw;
         if (address(HONGRewardAccount) == 0)
-            throw;
-        if (address(HONGReservedWallet) == 0)
             throw;
         if (address(ManagementFeePoolWallet) == 0)
             throw;
