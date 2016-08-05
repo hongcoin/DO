@@ -233,6 +233,10 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         uint256 weiToRefund = 0;
         bool wasMinTokensReached = isMinTokensReached();
 
+        // TODO we missed the logic to check amount of tokens to create at the current token price here
+        //
+
+
         // cap sale if there aren't enough tokens to sell
         uint256 tokensAvailable = maxTokensToCreate - tokensCreated;
         if (tokensToSupply > tokensAvailable) {
