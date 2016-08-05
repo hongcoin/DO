@@ -131,6 +131,8 @@ contract TokenCreationInterface {
     uint public closingTime;
     uint public minTokensToCreate;
     uint public maxTokensToCreate;
+    uint public tokensPerTier;
+    uint public tokensAvailableForCurrentTier;
     ManagedAccount public extraBalance;
     mapping (address => uint256) weiGiven;
     mapping (address => uint256) taxPaid;
@@ -222,6 +224,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         managementBodyAddress = _managementBodyAddress;
         closingTime = _closingTime;
         extraBalance = new ManagedAccount(address(this), address(this));
+
     }
 
     function createTokenProxy(address _tokenHolder) notLocked hasEther returns (bool success) {
@@ -397,16 +400,13 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // The number of (base unit) tokens per wei is calculated
         // as `msg.value` * 100 / `divisor`
 
-        // TEST tokensCreated < 50 * MILLION
-        uint MILLION = 10**6;
-
-        if(tokensCreated < 50 * MILLION){
+        if(tokensCreated < tokensPerTier){
             return 100;
-        } else if (tokensCreated < 100 * MILLION){
+        } else if (tokensCreated < 2 * tokensPerTier){
             return 101;
-        } else if (tokensCreated < 150 * MILLION){
+        } else if (tokensCreated < 3 * tokensPerTier){
             return 102;
-        } else if (tokensCreated < 200 * MILLION){
+        } else if (tokensCreated < 4 * tokensPerTier){
             return 103;
         } else {
             return 104;
@@ -495,6 +495,8 @@ contract HONG is HONGInterface, Token, TokenCreation {
         minTokensToCreate = 100 * MILLION;
         maxTokensToCreate = 250 * MILLION;
 
+        tokensPerTier = 50 * MILLION;
+        tokensAvailableForCurrentTier = tokensPerTier;
     }
 
     function () returns (bool success) {
