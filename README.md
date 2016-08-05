@@ -12,9 +12,7 @@ The contract is based on the white paper of http://HongCoin.org, and the collabo
 ### Flux of the money in the HONG
 ![Flux of the money in the HONG](images/HongCoin_moneyFlow.png)
 
-When the final voting of `harvest()` is approved, all token holders calling will harvest the fund with an amount calculated by:
-
-Total balance in `ReturnAccount` x 80% x (Token owned / Total token issued including ICO and bounty program)
+Our [Wiki page: _Money flux in the HONG contract_](https://github.com/hongcoin/DO/wiki/Money-flux-in-the-HONG-contract) has a detailed explanation of the flux of the fund.
 
 
 ### More details
