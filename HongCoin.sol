@@ -34,23 +34,6 @@ contract TokenInterface {
     }
 }
 
-/*
- * Includes methods/modifiers that are generally useful to ensure our contracts are using best
- * practice.  Note that Solidity does not (yet) support post-body modifiers for methods that have a
- * return statement.
- */
-contract SafeContract {
-    mapping (bytes4 => bool) reentrancyLock;
-
-    // Modified based on https://github.com/ethereum/solidity/issues/662
-    modifier nonReentrant {
-        if (reentrancyLock[msg.sig]) throw;
-        reentrancyLock[msg.sig] = true;
-        _
-        reentrancyLock[msg.sig] = false;
-    }
-}
-
 contract Token is TokenInterface {
     // Protects users by preventing the execution of method calls that
     // inadvertently also transferred ether
@@ -169,6 +152,7 @@ contract GovernanceInterface {
     bool public isFundLocked;
     modifier notLocked() {if (isFundLocked) throw; _}
     modifier onlyHarvestEnabled() {if (!isHarvestEnabled) throw; _}
+    modifier onlyDistributionNotInProgress() {if (isDistributionInProgress) throw; _}
     modifier onlyDistributionNotReady() {if (isDistributionReady) throw; _}
     modifier onlyDistributionReady() {if (!isDistributionReady) throw; _}
     modifier onlyCanIssueBountyToken(uint _amount) {
@@ -200,6 +184,7 @@ contract GovernanceInterface {
     bool public isInitialKickoffEnabled;
     bool public isFreezeEnabled;
     bool public isHarvestEnabled;
+    bool public isDistributionInProgress;
     bool public isDistributionReady;
 
     ManagedAccount public ReturnAccount;
@@ -225,7 +210,7 @@ contract GovernanceInterface {
 }
 
 
-contract TokenCreation is SafeContract, TokenCreationInterface, Token, GovernanceInterface {
+contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     modifier onlyManagementBody {
         if(msg.sender == address(managementBodyAddress)) _
     }
@@ -366,11 +351,11 @@ contract TokenCreation is SafeContract, TokenCreationInterface, Token, Governanc
 
     }
 
-    function mgmtDistribute() noEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotReady {
+    function mgmtDistribute() noEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotInProgress onlyDistributionNotReady {
         distributeDownstream(20);
     }
 
-    function distributeDownstream(uint mgmtPercentage) internal nonReentrant returns (bool){
+    function distributeDownstream(uint mgmtPercentage) internal returns (bool){
 
         // transfer all balance from the following accounts
         // (1) HONG main account,
@@ -583,7 +568,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         }
     }
 
-    function freeze() onlyTokenHolders noEther notFinalFiscalYear {
+    function freeze() onlyTokenHolders noEther notFinalFiscalYear onlyDistributionNotInProgress {
 
         supportFreezeQuorum -= votedFreeze[msg.sender];
         supportFreezeQuorum += balances[msg.sender];
