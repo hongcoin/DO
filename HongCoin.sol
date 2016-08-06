@@ -419,7 +419,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function getCurrentTier() constant returns (uint8) {
         uint8 tier = (uint8) (tokensCreated / tokensPerTier);
-        if (tier < 0 || tier > 4) throw;
+        if (tier > 4) throw;
         return tier;
     }
 
