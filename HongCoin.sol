@@ -77,7 +77,7 @@ contract ManagedAccountInterface {
     }
 
     function payBalanceDownstream() onlyOwner noEther;
-    function payBalanceToOwner() onlyOwner noEther;
+    function payBalanceToOwner() noEther;
     function payPercentageDownstream(uint percent) onlyOwner noEther;
     function payOwnerAmount(uint _amount) onlyOwner noEther;
     function actualBalance() returns (uint);
@@ -97,7 +97,7 @@ contract ManagedAccount is ManagedAccountInterface{
         payOut(downstreamAccount, this.balance);
     }
 
-    function payBalanceToOwner() onlyOwner noEther {
+    function payBalanceToOwner() noEther {
        payOut(owner, this.balance);
     }
 
@@ -109,7 +109,7 @@ contract ManagedAccount is ManagedAccountInterface{
         payOut(owner, _amount);
     }
 
-    function payOut(address _recipient, uint _amount) internal onlyOwner noEther {
+    function payOut(address _recipient, uint _amount) internal noEther {
         if (!_recipient.send(_amount)) throw;
         evPayOut(_recipient, _amount);
     }
@@ -540,6 +540,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         minTokensToCreate = 100 * MILLION;
         maxTokensToCreate = 250 * MILLION;
 
+        // TEST tokensCreated steps 50 * MILLION
         tokensPerTier = 50 * MILLION;
         tokensAvailableForCurrentTier = tokensPerTier;
     }
