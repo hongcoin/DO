@@ -132,7 +132,7 @@ contract TokenCreationInterface {
     uint public minTokensToCreate;
     uint public maxTokensToCreate;
     uint public tokensPerTier;
-    uint public weiPerInitialHONG;
+    uint public tokensAvailableForCurrentTier;
     ManagedAccount public extraBalance;
     mapping (address => uint256) weiGiven;
     mapping (address => uint256) taxPaid;
@@ -231,40 +231,96 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // Business logic (but no state changes)
         // setup transaction details
-        uint tokensSupplied = 0;
-        uint weiAccepted = 0;
+        uint weiPerInitialHONG = 10**16;
+        var weiPerLatestHONG = weiPerInitialHONG * divisor() / 100;
+        uint tokensRequestedWithLatestPrice = msg.value / weiPerLatestHONG;
+        uint tokensToSupply;
+        uint256 weiToAccept = msg.value;
+        uint256 weiToRefund = 0;
         bool wasMinTokensReached = isMinTokensReached();
 
-        var weiPerLatestHONG = weiPerInitialHONG * divisor() / 100;
-        uint remainingWei = msg.value;
-        uint tokensAvailable = tokensAvailableAtCurrentTier();
+        // logic to check amount of tokens to create at the current token price
 
-        // Sell tokens in batches based on the current price.
-        while (tokensAvailable > 0 && remainingWei >= weiPerLatestHONG) {
-            uint tokensRequested = remainingWei / weiPerLatestHONG;
-            uint tokensToSellInBatch = min(tokensAvailable, tokensRequested);
-            uint priceForBatch = tokensToSellInBatch * weiPerLatestHONG;
+        if (tokensAvailableForCurrentTier >= tokensRequestedWithLatestPrice) {
+            // issue the requested tokens
+            // tokensAvailableForCurrentTier becomes the remaining token for the current tier
+            tokensAvailableForCurrentTier -= tokensRequestedWithLatestPrice;
+            tokensToSupply = tokensRequestedWithLatestPrice;
 
-            // track to total wei accepted and total tokens supplied
-            weiAccepted += priceForBatch;
-            tokensSupplied += tokensToSellInBatch;
+            balances[_tokenHolder] += tokensToSupply;
+            tokensCreated += tokensToSupply;
+            weiGiven[_tokenHolder] += weiToAccept;
 
-            // update state
-            balances[_tokenHolder] += tokensToSellInBatch;
-            tokensCreated += tokensToSellInBatch;
-            weiGiven[_tokenHolder] += priceForBatch;
+        } else {
+            // create the remaining tokens at the current price, and the remaining tokens at the next tier
+            // how many tokens can be created at the current tier
+            tokensToSupply = tokensAvailableForCurrentTier;
+            tokensAvailableForCurrentTier = tokensPerTier; // reset the value for the next tier
 
-            // update dependent values (state has changed)
-            weiPerLatestHONG = weiPerInitialHONG * divisor() / 100;
-            remainingWei = msg.value - weiAccepted;
-            tokensAvailable = tokensAvailableAtCurrentTier();
+            // check if this is the last tier.
+            if ((tokensCreated + tokensToSupply) >= maxTokensToCreate) {
+                //  Do refund for the remaining fund.
+
+                tokensToSupply = maxTokensToCreate - tokensCreated;
+                weiToAccept = tokensToSupply * weiPerLatestHONG;
+                weiToRefund = msg.value - weiToAccept;
+
+                balances[_tokenHolder] += tokensToSupply;
+                tokensCreated += tokensToSupply;
+                weiGiven[_tokenHolder] += weiToAccept;
+
+            } else {
+
+                // if it is not the last tier, go the the next tier
+
+                // remaining wei for the next tier
+                uint remainingFund = msg.value - weiPerLatestHONG * tokensToSupply;
+
+                // update the value for the next year
+                weiPerLatestHONG = weiPerInitialHONG * divisor() / 100;
+
+                // based on the wei/price ratio, find number of tokens can get for the next tier
+                tokensRequestedWithLatestPrice = remainingFund / weiPerLatestHONG;
+
+                // if that is too many tokens (greater than a tier), throw
+                if(tokensRequestedWithLatestPrice > tokensAvailableForCurrentTier) {
+                    // do not accept large amount of tokens at a time
+                    throw;
+                } else {
+                    // process the remaining fund
+                    tokensAvailableForCurrentTier -= tokensRequestedWithLatestPrice;
+                    tokensToSupply += tokensRequestedWithLatestPrice;
+
+                    balances[_tokenHolder] += tokensToSupply;
+                    tokensCreated += tokensToSupply;
+                    weiGiven[_tokenHolder] += weiToAccept;
+                }
+            }
+
+        }
+
+        // State Changes (no external calls)
+        isFundLocked = isMaxTokensReached();
+
+        // if we've reached the 30 day mark, try to lock the fund
+        if (!isFundLocked && !isDayThirtyChecked && (now >= closingTime)) {
+            if (isMinTokensReached()) {
+                isFundLocked = true;
+            }
+            isDayThirtyChecked = true;
+        }
+
+        // if we've reached the 60 day mark, try to lock the fund
+        // TEST closingTimeExtensionPeriod = 30 days
+        if (!isFundLocked && !isDaySixtyChecked && (now >= (closingTime + 30 days))) {
+            if (isMinTokensReached()) {
+                isFundLocked = true;
+            }
+            isDaySixtyChecked = true;
         }
 
         // when the caller is paying more than 10**16 wei (0.01 Ether) per token, the extra is basically a tax.
-        uint256 totalTaxLevied = weiAccepted - tokensSupplied * weiPerInitialHONG;
-
-        // State Changes (no external calls)
-        tryToLockFund();
+        uint256 totalTaxLevied = weiToAccept - tokensToSupply * weiPerInitialHONG;
 
         // External calls
         if (totalTaxLevied > 0) {
@@ -272,15 +328,15 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
                 throw;
         }
 
-        // TODO: might be better to put this into overpayment[_tokenHolder] += remainingWei
+        // TODO: might be better to put this into overpayment[_tokenHolder] += weiToRefund
         // and let them call back for it.
-        if (remainingWei > 0) {
-            if (!msg.sender.send(remainingWei))
+        if (weiToRefund > 0) {
+            if (!msg.sender.send(weiToRefund))
                 throw;
         }
 
-        // Events.  Safe to publish these now that we know it all worked
-        evCreatedToken(_tokenHolder, tokensSupplied);
+        // Events.  Safe to publish these now that we know if all worked
+        evCreatedToken(_tokenHolder, tokensToSupply);
         if (!wasMinTokensReached && isMinTokensReached()) evMinTokensReached(tokensCreated);
         if (isFundLocked) evLockFund();
         return true;
@@ -381,48 +437,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             throw;
     }
 
-    function min(uint a, uint b) constant internal returns (uint) {
-        if (a < b) return a;
-        return b;
-    }
-
-    function tryToLockFund() internal noEther {
-        isFundLocked = isMaxTokensReached();
-        // if we've reached the 30 day mark, try to lock the fund
-        if (!isFundLocked && !isDayThirtyChecked && (now >= closingTime)) {
-            if (isMinTokensReached()) {
-                isFundLocked = true;
-            }
-            isDayThirtyChecked = true;
-        }
-
-        // if we've reached the 60 day mark, try to lock the fund
-        // TEST closingTimeExtensionPeriod = 30 days
-        if (!isFundLocked && !isDaySixtyChecked && (now >= (closingTime + 30 days))) {
-            if (isMinTokensReached()) {
-                isFundLocked = true;
-            }
-            isDaySixtyChecked = true;
-        }
-    }
-
-    function tokensAvailableAtCurrentTier() constant returns (uint) {
-        uint tierThreshold = (getCurrentTier()+1) * tokensPerTier;
-
-        // never go above maxTokensToCreate, which could happen if the max is not a multiple of tokensPerTier
-        if (tierThreshold > maxTokensToCreate) {
-            tierThreshold = maxTokensToCreate;
-        }
-
-        return tokensCreated - tierThreshold;
-    }
-
-    function getCurrentTier() constant returns (uint8) {
-        uint8 tier = (uint8) (tokensCreated / tokensPerTier);
-        if (tier > 4) throw;
-        return tier;
-    }
-
     function divisor() constant returns (uint divisor) {
 
         // Quantity divisor model: based on total quantity of coins issued
@@ -430,8 +444,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // The number of (base unit) tokens per wei is calculated
         // as `msg.value` * 100 / `divisor`
-
-        // TODO: We could call getCurrentTier here to avoid duplicating this logic
 
         if(tokensCreated < tokensPerTier){
             return 100;
@@ -530,7 +542,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
         // TEST tokensCreated steps 50 * MILLION
         tokensPerTier = 50 * MILLION;
-        weiPerInitialHONG = 10**16;
+        tokensAvailableForCurrentTier = tokensPerTier;
     }
 
     function () returns (bool success) {
