@@ -484,7 +484,7 @@ contract HONGInterface {
 
     function () returns (bool success);
 
-    function kickoff();
+    function kickoff(uint _fiscal);
     function freeze();
     function unFreeze();
     function harvest();
@@ -543,10 +543,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
     /*
      * Voting for some critical steps, on blockchain
      */
-    function kickoff() onlyTokenHolders noEther {
-        // this is the only valid fiscal year parameter, so there's no point in letting the caller pass it in.
-        // Best case is they get it wrong and we throw, worst case is the get it wrong and there's some exploit
-        uint _fiscal = currentFiscalYear + 1;
+    function kickoff(uint _fiscal) onlyTokenHolders noEther {
 
         if(!isInitialKickoffEnabled){  // if there is no kickoff() enabled before
             // input of _fiscal have to be the first year
