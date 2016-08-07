@@ -475,7 +475,6 @@ contract HONGInterface {
     uint256 public supportFreezeQuorum;
     uint256 public supportHarvestQuorum;
 
-    mapping (address => uint) public rewardToken;
     uint public totalInitialBalance;
     uint public annualManagementFee;
     uint public totalRewardToken;
