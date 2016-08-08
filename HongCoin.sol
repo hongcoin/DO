@@ -109,7 +109,7 @@ contract ManagedAccount is ManagedAccountInterface{
         payOut(owner, _amount);
     }
 
-    function payOut(address _recipient, uint _amount) internal noEther {
+    function payOut(address _recipient, uint _amount) internal {
         if (!_recipient.send(_amount)) throw;
         evPayOut(_recipient, _amount);
     }
@@ -386,7 +386,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return b;
     }
 
-    function tryToLockFund() internal noEther {
+    function tryToLockFund() internal {
         isFundLocked = isMaxTokensReached();
         // if we've reached the 30 day mark, try to lock the fund
         if (!isFundLocked && !isDayThirtyChecked && (now >= closingTime)) {
