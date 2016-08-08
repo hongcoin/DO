@@ -414,7 +414,10 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             tierThreshold = maxTokensToCreate;
         }
 
-        return tokensCreated - tierThreshold;
+        // this shouldn't happen since the fund should be locked when we hit the max
+        if (tokensCreated > tierThreshold) throw;
+
+        return tierThreshold - tokensCreated;
     }
 
     function getCurrentTier() constant returns (uint8) {
