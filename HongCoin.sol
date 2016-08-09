@@ -262,6 +262,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // when the caller is paying more than 10**16 wei (0.01 Ether) per token, the extra is basically a tax.
         uint256 totalTaxLevied = weiAccepted - tokensSupplied * weiPerInitialHONG;
+        taxPaid[_tokenHolder] += totalTaxLevied;
 
         // State Changes (no external calls)
         tryToLockFund();
