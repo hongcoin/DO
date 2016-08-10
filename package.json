@@ -1,0 +1,19 @@
+{
+  "name": "ethereum-js-sample",
+  "dependencies": {
+    "async": "^1.5.2",
+    "ethereum-sandbox-helper": "^1.0.0-beta3",
+    "ethereumjs-tx": "^1.0.0",
+    "web3": "^0.15.2"
+  },
+  "devDependencies": {
+    "browserify": "^13.0.0",
+    "ethereum-sandbox-client": "git+https://github.com/ether-camp/ethereum-sandbox-client.git",
+    "gulp": "^3.9.1",
+    "gulp-mocha": "^2.2.0",
+    "mocha": "^2.4.5",
+    "solidity-compiler": "git+https://github.com/ether-camp/solidity-compiler.git",
+    "vinyl-source-stream": "^1.1.0",
+    "watchify": "^3.7.0"
+  }
+}
