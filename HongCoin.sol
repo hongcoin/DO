@@ -145,7 +145,7 @@ contract TokenCreationInterface {
     uint public weiPerInitialHONG;
     ManagedAccount public extraBalance;
     mapping (address => uint256) weiGiven;
-    mapping (address => uint256) taxPaid;
+    mapping (address => uint256) public taxPaid;
 
     function createTokenProxy(address _tokenHolder) returns (bool success);
     function refund();
@@ -563,6 +563,13 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return createTokenProxy(msg.sender);
     }
 
+    function extraBalanceAccountBalance() noEther constant returns (uint) {
+        return extraBalance.actualBalance();
+    }
+
+    function buyTokens() returns (bool success) {
+        return createTokenProxy(msg.sender);
+    }
 
     /*
      * Voting for some critical steps, on blockchain
