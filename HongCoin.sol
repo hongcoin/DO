@@ -145,7 +145,7 @@ contract TokenCreationInterface {
     uint public weiPerInitialHONG;
     ManagedAccount public extraBalance;
     mapping (address => uint256) weiGiven;
-    mapping (address => uint256) public taxPaid;
+    mapping (address => uint256) taxPaid;
 
     function createTokenProxy(address _tokenHolder) returns (bool success);
     function refund();
@@ -303,8 +303,14 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function refund() noEther notLocked onlyTokenHolders {
         // 1: Preconditions
-        if (weiGiven[msg.sender] == 0) {doThrow("noWeiGiven"); return;}
-        if (balances[msg.sender] > tokensCreated) {doThrow("invalidTokenCount"); return;}
+        if (weiGiven[msg.sender] == 0) {
+            doThrow("noWeiGiven");
+            return;
+        }
+        if (balances[msg.sender] > tokensCreated) {
+            doThrow("invalidTokenCount");
+            return;
+         }
 
         // 2: Business logic
         bool wasMinTokensReached = isMinTokensReached();
@@ -397,7 +403,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             return;
     }
 
-    function min(uint a, uint b) constant returns (uint) {
+    function min(uint a, uint b) constant internal returns (uint) {
         if (a < b) return a;
         return b;
     }
@@ -510,7 +516,6 @@ contract HONGInterface is ErrorHandler {
     function freeze();
     function unFreeze();
     function harvest();
-    function myAddMethod(uint a, uint b) constant returns (uint);
 
     function collectReturn();
 
@@ -562,17 +567,6 @@ contract HONG is HONGInterface, Token, TokenCreation {
         return createTokenProxy(msg.sender);
     }
 
-    function extraBalanceAccountBalance() noEther constant returns (uint) {
-        return extraBalance.actualBalance();
-    }
-
-    function buyTokens() returns (bool success) {
-        return createTokenProxy(msg.sender);
-    }
-
-    function myAddMethod(uint a, uint b) constant returns (uint) {
-        return a + b;
-    }
 
     /*
      * Voting for some critical steps, on blockchain
