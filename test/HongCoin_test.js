@@ -44,7 +44,6 @@ describe('HONG Contract Suite', function() {
       ownerAddress,
       ownerAddress,
       endDate,
-      1000 * 60 * 60,
       {
         /* contract creator */
         from: ownerAddress,
@@ -66,18 +65,6 @@ describe('HONG Contract Suite', function() {
   });
 
   /*
-    TestCase: check-add
-    Description:
-  */
-  /*
-  it('check-add', function(done) {
-    console.log(' [check-add]');
-    assert.equal(hong.myAddMethod(1,2), 3);
-    done();      
-  });
-  */
-  
-  /*
   TestCase: check-tokensAvail
   Description:
   */
@@ -93,8 +80,8 @@ describe('HONG Contract Suite', function() {
     /*
    * The first token request, for 1 Ether shoud get 100 tokens
    */
-  it('refund', function(done) {
-    var buyer = ownerAddress;
+  it('refund-before-purchase', function(done) {
+    // TODO: validate that an exception was thrown (or logged)
     hong.refund();
     done();
   });
