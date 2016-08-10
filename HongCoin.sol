@@ -17,7 +17,16 @@ GNU lesser General Public License for more details.
 You should have received a copy of the GNU lesser General Public License
 along with the HONG.  If not, see <http://www.gnu.org/licenses/>.
 */
-contract TokenInterface {
+
+contract ErrorHandler {
+    event evRecord(string eventType, string msg);
+    function doThrow(string msg) {
+        evRecord("Error", msg);
+        // throw;
+    }
+}
+
+contract TokenInterface is ErrorHandler {
     mapping (address => uint256) balances;
     mapping (address => mapping (address => uint256)) allowed;
     uint256 public tokensCreated;
@@ -29,16 +38,15 @@ contract TokenInterface {
 
     // Modifier that allows only shareholders to trigger
     modifier onlyTokenHolders {
-        if (balanceOf(msg.sender) == 0) throw;
-            _
+        if (balanceOf(msg.sender) == 0) doThrow("onlyTokenHolders"); else {_}
     }
 }
 
 contract Token is TokenInterface {
     // Protects users by preventing the execution of method calls that
     // inadvertently also transferred ether
-    modifier noEther() {if (msg.value > 0) throw; _}
-    modifier hasEther() {if (msg.value <= 0) throw; _}
+    modifier noEther() {if (msg.value > 0) doThrow("noEther"); else{_}}
+    modifier hasEther() {if (msg.value <= 0) doThrow("hasEther"); else{_}}
 
     function balanceOf(address _owner) constant returns (uint256 balance) {
         return balances[_owner];
@@ -59,7 +67,7 @@ contract Token is TokenInterface {
 }
 
 
-contract ManagedAccountInterface {
+contract ManagedAccountInterface is ErrorHandler {
 
     // These are the only two addresses that this account can send to.  Seems safer to avoid an interface that
     // takes in an arbitrary address as a parameter.
@@ -67,13 +75,13 @@ contract ManagedAccountInterface {
     address public downstreamAccount;
 
     modifier onlyOwner() {
-        if (msg.sender != owner) throw;
-        _
+        if (msg.sender != owner) doThrow("onlyOwner");
+        else {_}
     }
 
     modifier noEther() {
-        if (msg.value > 0) throw;
-        _
+        if (msg.value > 0) doThrow("noEther");
+        else {_}
     }
 
     function payBalanceDownstream() onlyOwner noEther;
@@ -110,8 +118,10 @@ contract ManagedAccount is ManagedAccountInterface{
     }
 
     function payOut(address _recipient, uint _amount) internal {
-        if (!_recipient.send(_amount)) throw;
-        evPayOut(_recipient, _amount);
+        if (!_recipient.send(_amount))
+            doThrow("payOut:sendFailed");
+        else
+            evPayOut(_recipient, _amount);
     }
 
     // consistent with HONG contract
@@ -147,33 +157,35 @@ contract TokenCreationInterface {
 }
 
 
-contract GovernanceInterface {
+contract GovernanceInterface is ErrorHandler {
 
     // The variable indicating whether the fund has achieved the inital goal or not.
     // This value is automatically set, and CANNOT be reversed.
     bool public isFundLocked;
-    modifier notLocked() {if (isFundLocked) throw; _}
-    modifier onlyHarvestEnabled() {if (!isHarvestEnabled) throw; _}
-    modifier onlyDistributionNotInProgress() {if (isDistributionInProgress) throw; _}
-    modifier onlyDistributionNotReady() {if (isDistributionReady) throw; _}
-    modifier onlyDistributionReady() {if (!isDistributionReady) throw; _}
+    modifier notLocked() {if (isFundLocked) doThrow("notLocked"); else {_}}
+    modifier onlyHarvestEnabled() {if (!isHarvestEnabled) doThrow("onlyHarvestEnabled"); else {_}}
+    modifier onlyDistributionNotInProgress() {if (isDistributionInProgress) doThrow("onlyDistributionNotInProgress"); else {_}}
+    modifier onlyDistributionNotReady() {if (isDistributionReady) doThrow("onlyDistributionNotReady"); else {_}}
+    modifier onlyDistributionReady() {if (!isDistributionReady) doThrow("onlyDistributionReady"); else {_}}
     modifier onlyCanIssueBountyToken(uint _amount) {
         // TEST maxBountyTokens 2 * MILLION
         uint MILLION = 10**6;
         uint maxBountyTokens = 2 * MILLION;
-        if (bountyTokensCreated + _amount > maxBountyTokens){throw;}
-        _
+        if (bountyTokensCreated + _amount > maxBountyTokens){
+            doThrow("hitMaxBounty");
+        }
+        else {_}
     }
     modifier onlyFinalFiscalYear() {
         // Only call harvest() in the final fiscal year
-        if (currentFiscalYear < 4) throw; _
+        if (currentFiscalYear < 4) doThrow("currentFiscalYear<4"); else {_}
     }
     modifier notFinalFiscalYear() {
         // Token holders cannot freeze fund at the 4th Fiscal Year after passing `kickoff(4)` voting
-        if (currentFiscalYear >= 4) throw; _
+        if (currentFiscalYear >= 4) doThrow("currentFiscalYear>=4"); else {_}
     }
     modifier onlyNotFrozen() {
-        if (isFreezeEnabled) throw; _
+        if (isFreezeEnabled) doThrow("onlyNotFrozen"); else {_}
     }
 
     bool public isDayThirtyChecked;
@@ -270,14 +282,16 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // External calls
         if (totalTaxLevied > 0) {
             if (!extraBalance.send(totalTaxLevied))
-                throw;
+                doThrow("xtraBalance:sendFail");
+                return;
         }
 
         // TODO: might be better to put this into overpayment[_tokenHolder] += remainingWei
         // and let them call back for it.
         if (remainingWei > 0) {
             if (!msg.sender.send(remainingWei))
-                throw;
+                doThrow("refund:sendFail");
+                return;
         }
 
         // Events.  Safe to publish these now that we know it all worked
@@ -289,9 +303,14 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function refund() noEther notLocked onlyTokenHolders {
         // 1: Preconditions
-        if (weiGiven[msg.sender] < 0) throw;
-        if (taxPaid[msg.sender] < 0) throw;
-        if (balances[msg.sender] > tokensCreated) throw;
+        if (weiGiven[msg.sender] == 0) {
+            doThrow("noWeiGiven");
+            return;
+        }
+        if (balances[msg.sender] > tokensCreated) {
+            doThrow("invalidTokenCount");
+            return;
+         }
 
         // 2: Business logic
         bool wasMinTokensReached = isMinTokensReached();
@@ -315,7 +334,8 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // If that works, then do a refund
         if (!msg.sender.send(amountToRefund)) {
             evRefund(msg.sender, amountToRefund, false);
-            throw;
+            doThrow("refund:SendFailed");
+            return;
         }
 
         evRefund(msg.sender, amountToRefund, true);
@@ -379,7 +399,8 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function payoutBalanceToReturnAccount() internal {
         if (!ReturnAccount.send(this.balance))
-            throw;
+            doThrow("payoutBalanceToReturnAccount:sendFailed");
+            return;
     }
 
     function min(uint a, uint b) constant internal returns (uint) {
@@ -407,23 +428,27 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         }
     }
 
-    function tokensAvailableAtCurrentTier() constant returns (uint) {
-        uint tierThreshold = (getCurrentTier()+1) * tokensPerTier;
+    function tokensAvailableAtTierInternal(uint8 _currentTier, uint _tokensPerTier, uint _tokensCreated) constant returns (uint) {
+        uint tierThreshold = (_currentTier+1) * _tokensPerTier;
 
-        // never go above maxTokensToCreate, which could happen if the max is not a multiple of tokensPerTier
+        // never go above maxTokensToCreate, which could happen if the max is not a multiple of _tokensPerTier
         if (tierThreshold > maxTokensToCreate) {
             tierThreshold = maxTokensToCreate;
         }
 
         // this shouldn't happen since the fund should be locked when we hit the max
-        if (tokensCreated > tierThreshold) throw;
+        if (_tokensCreated > tierThreshold) {doThrow("tooManyTokens"); return 0;}
 
-        return tierThreshold - tokensCreated;
+        return tierThreshold - _tokensCreated;
+    }
+
+    function tokensAvailableAtCurrentTier() constant returns (uint) {
+        return tokensAvailableAtTierInternal(getCurrentTier(), tokensPerTier, tokensCreated);
     }
 
     function getCurrentTier() constant returns (uint8) {
         uint8 tier = (uint8) (tokensCreated / tokensPerTier);
-        if (tier > 4) throw;
+        if (tier > 4) doThrow("tierToBig");
         return tier;
     }
 
@@ -452,7 +477,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 }
 
 
-contract HONGInterface {
+contract HONGInterface is ErrorHandler {
 
     // we do not have grace period. Once the goal is reached, the fund is secured
 
@@ -460,13 +485,13 @@ contract HONGInterface {
 
     modifier onlyVoteHarvestOnce() {
         // prevent duplicate voting from the same token holder
-        if(votedHarvest[msg.sender] > 0){throw;}
-        _
+        if(votedHarvest[msg.sender] > 0){doThrow("onlyVoteHarvestOnce");}
+        else {_}
     }
     modifier onlyCollectOnce() {
         // prevent return being collected by the same token holder
-        if(returnCollected[msg.sender]){throw;}
-        _
+        if(returnCollected[msg.sender]){doThrow("onlyCollectOnce");}
+        else {_}
     }
 
     // 3 most important votings in blockchain
@@ -519,11 +544,11 @@ contract HONG is HONGInterface, Token, TokenCreation {
         HONGRewardAccount = new ManagedAccount(address(this), address(ReturnAccount));
         ManagementFeePoolWallet = new ManagedAccount(address(this), address(ReturnAccount));
         if (address(ReturnAccount) == 0)
-            throw;
+            doThrow("RetrunAccount:0");
         if (address(HONGRewardAccount) == 0)
-            throw;
+            doThrow("HONGRewardAccount:0");
         if (address(ManagementFeePoolWallet) == 0)
-            throw;
+            doThrow("ManagementFeePoolWallet:0");
 
         uint MILLION = 10**6;
         // TEST minTokensToCreate 100 * MILLION
@@ -557,14 +582,16 @@ contract HONG is HONGInterface, Token, TokenCreation {
             if(_fiscal == 1){
                 // accept voting
             }else{
-                throw;
+                doThrow("kickOff:noInitialKickoff");
+                return;
             }
 
         }else if(currentFiscalYear <= 3){  // if there was any kickoff() enabled before already
             // available range of _fiscal is [2,3,4]
             // input of _fiscal have to be the next year
             if(_fiscal != currentFiscalYear + 1){
-                throw;
+                doThrow("kickOff:notNextYear");
+                return;
             }
 
             // TEST lastKickoffDateBuffer = 304 days
@@ -572,11 +599,13 @@ contract HONG is HONGInterface, Token, TokenCreation {
                 // accept voting
             }else{
                 // we do not accept early kickoff
-                throw;
+                doThrow("kickOff:tooEarly");
+                return;
             }
         }else{
             // do not accept kickoff anymore after the 4th year
-            throw;
+            doThrow("kickOff:4thYear");
+            return;
         }
 
 
@@ -596,7 +625,8 @@ contract HONG is HONGInterface, Token, TokenCreation {
                 uint fundToReserve = totalInitialBalance * 8 / 100;
                 annualManagementFee = fundToReserve / 4;
                 if(!ManagementFeePoolWallet.call.value(fundToReserve)()){
-                    throw;
+                    doThrow("kickoff:ManagementFeePoolWalletFail");
+                    return;
                 }
 
             }
