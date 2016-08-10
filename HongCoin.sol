@@ -508,8 +508,6 @@ contract HONGInterface is ErrorHandler {
     uint public annualManagementFee;
     uint public totalRewardToken;
 
-    HONG_Creator public hongcoinCreator;
-
     function () returns (bool success);
 
     function kickoff();
@@ -532,14 +530,12 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
     function HONG(
         address _managementBodyAddress,
-        HONG_Creator _hongcoinCreator,
         // A variable to be set 30 days after contract execution.
         // There is an extra 30-day period after this date for second round, if it failed to reach for the first deadline.
         uint _closingTime
     ) TokenCreation(_managementBodyAddress, _closingTime) {
 
         managementBodyAddress = _managementBodyAddress;
-        hongcoinCreator = _hongcoinCreator;
         ReturnAccount = new ManagedAccount(address(this), managementBodyAddress);
         HONGRewardAccount = new ManagedAccount(address(this), address(ReturnAccount));
         ManagementFeePoolWallet = new ManagedAccount(address(this), address(ReturnAccount));
@@ -738,19 +734,5 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
     function actualBalance() constant returns (uint _actualBalance) {
         return this.balance;
-    }
-}
-
-contract HONG_Creator {
-    function createHONG(
-        address _managementBodyAddress,
-        uint _closingTime
-    ) returns (HONG _newHONG) {
-
-        return new HONG(
-            _managementBodyAddress,
-            HONG_Creator(this),
-            _closingTime
-        );
     }
 }
