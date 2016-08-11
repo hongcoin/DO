@@ -7,7 +7,6 @@ var assert = require('assert');
 
 var Sandbox = require('ethereum-sandbox-client');
 var helper = require('ethereum-sandbox-helper');
-
 var async = require('async');
 
 describe('HONG Contract Suite', function() {
@@ -77,28 +76,120 @@ describe('HONG Contract Suite', function() {
     done();      
   });
   
-    /*
-   * The first token request, for 1 Ether shoud get 100 tokens
+  /*
    */
-  it('refund-before-purchase', function(done) {
-    // TODO: validate that an exception was thrown (or logged)
-    hong.refund();
-    done();
+  it('refund-before-purchase-fails', function(done) {
+    var previousErrorCount = hong.errorCount();
+    validateTransaction(
+        function() { return hong.refund({from: fellow1}) }, 
+        function() {
+          assert.equal(hong.errorCount() > previousErrorCount, true, "Error count did not increase");
+        },
+        done);
   });
   
+  it('refund-after-purchase-ok', function(done) {
+    var buyer = fellow1;
+    validateTwoTransactions(
+        function() {
+          console.log("Buying tokens...");
+          return hong.buyTokens({from: buyer, value: 1*eth});
+        },
+        function() {
+          console.log("Validation Purchase...");
+          assertHongBalance(1*eth);
+          assertTokens(buyer, 100);
+          assert.equal(hong.tokensCreated(), 100);
+        },
+        function() {
+          console.log("Getting a refund...");
+          return hong.refund({from: buyer});
+        },
+        function() {
+          console.log("Validating refund...");
+          assertHongBalance(0*eth);
+          assertTokens(buyer, 0);
+          assert.equal(hong.tokensCreated(), 0);
+        },
+        function(err) {
+          console.log("Calling done...");
+          done(err);
+        }
+    )
+  });
+  
+  function checkForErrorAndThen(done, action) {
+    return function(err) {
+      if (err) done(err);
+      else action();
+    }
+  }
+  
+  /*
+   * Not happy with this.  There must be a better way (without writing a recursive unit test).  
+   * If we can find a way to just make the code actually wait for the tx to complete (rather than 
+   * passing in a callback), the code would be more readable.  e.g. 
+   * doAction1();
+   * validateAction1();
+   * doAction2();
+   * validateAction2();
+   * etc...
+   */
+  function validateTwoTransactions(action1, validation1, action2, validation2, done) {
+    validateTransaction(
+      action1,
+      validation1,
+      checkForErrorAndThen(done, 
+        function() {
+          validateTransaction(
+              action2, 
+              validation2,
+              done
+            );
+      }));
+  }
+  
+  /*
+   * The basic template for simple tests is as follows:  
+   *
+   * validateTransaction(
+   *   function() {
+   *     return doSomeTransaction();
+   *   }, 
+   *   function() {
+   *     assertSomeStuff();
+   *   }, 
+   *   done
+   * );
+   * The "done" function is passed into the test by the framework and should be called when the test completes.
+   */
+  function validateTransaction(transaction, validation, done) {
+      var txHash = transaction();
+      helper.waitForReceipt(sandbox.web3, txHash, function(err, receipt) {
+          if (err) return done(err);
+          validation();
+          console.log("validateTransaction: calling done...");
+          done();
+      });
+  }
   
   /*
    * The first token request, for 1 Ether shoud get 100 tokens
    */
   it('create-1', function(done) {
+    console.log("create-1");
     var buyer = ownerAddress;
-    testTokenPurchase(buyer, 1*eth, function(err){
-      if (err) return done(err);
-      assertHongBalance(1*eth);
-      assertTokens(buyer, 100);
-      assert.equal(hong.tokensCreated(), 100);
-      done();
-    });
+    validateTransaction(
+      function() {
+        return hong.buyTokens({from: buyer, value: 1*eth});
+      }, 
+      function() {
+        assertHongBalance(1*eth);
+        assertTokens(buyer, 100);
+        assert.equal(hong.tokensCreated(), 100);
+      }, 
+      done
+    );
   });
   
   /*
@@ -106,38 +197,53 @@ describe('HONG Contract Suite', function() {
    * It's for the same user, so the total should be 200 tokens
    */
   it('create-2', function(done) {
+    console.log("create-2");
     var buyer = ownerAddress;
-    testTokenPurchase(buyer, 1*eth, function(err){
-      if (err) return done(err);
-      assertHongBalance(2*eth);
-      assertTokens(buyer, 200);
-      assert.equal(hong.tokensCreated(), 200);
-      done();
-    });
+    validateTransaction(
+      function() {
+        return hong.buyTokens({from: buyer, value: 1*eth});
+      }, 
+      function() {
+        assertHongBalance(2*eth);
+        assertTokens(buyer, 200);
+        assert.equal(hong.tokensCreated(), 200);
+      }, 
+      done
+    );
   });
   
     /*
    */
   it('create-3', function(done) {
+    console.log("create-3");
     var buyer = fellow1;
-    testTokenPurchase(buyer, 1*eth, function(err){
-      if (err) return done(err);
-      assertHongBalance(3*eth);
-      assertTokens(buyer, 100);
-      assert.equal(hong.tokensCreated(), 300);
-      done();
-    });
+    validateTransaction(
+      function() {
+        return hong.buyTokens({from: buyer, value: 1*eth});
+      }, 
+      function() {
+        assertHongBalance(3*eth);
+        assertTokens(buyer, 100);
+        assert.equal(hong.tokensCreated(), 300);
+      }, 
+      done
+    );
   });
   
   it('create-nextTier', function(done) {
+    console.log('create-nextTier');
     var buyer = fellow4;
-    testTokenPurchase(buyer, 500000*eth, function(err){
-      if (err) return done(err);
-      console.log(hong.balanceOf(buyer));
-      console.log("tax paid: " + hong.taxPaid(buyer));
-      console.log("extra balance: " + hong.extraBalanceAccountBalance());
-      done();
-    });
+    validateTransaction(
+        function() {
+          return hong.buyTokens({from: buyer, value: 500000*eth});
+        }, 
+        function() {
+          console.log(hong.balanceOf(buyer));
+          console.log("tax paid: " + hong.taxPaid(buyer));
+          console.log("extra balance: " + hong.extraBalanceAccountBalance());
+        }, 
+        done
+    );
   });
   
   function logEventsToConsole() {
@@ -156,21 +262,6 @@ describe('HONG Contract Suite', function() {
     assert.equal(hong.actualBalance(), expectedHongBalance);
   }
   
-  function testTokenPurchase(buyer, sentValue, done) {
-    console.log("hong: " + hong.address);
-    hong.buyTokens({
-      from: buyer,
-      value: sentValue
-    }, 
-    function(err, txHash) {
-      if (err) return done(err);
-      helper.waitForReceipt(sandbox.web3, txHash, function(err, receipt) {
-        if (err) return done(err);
-        done();
-      });
-    });   
-  }
-
   after(function(done) {
     eventLogger.stopWatching();
     sandbox.stop(done);
