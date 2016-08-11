@@ -19,8 +19,10 @@ along with the HONG.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 contract ErrorHandler {
+    uint public errorCount = 0;
     event evRecord(address msg_sender, uint msg_value, string eventType, string message);
     function doThrow(string message) {
+        errorCount++;
         evRecord(msg.sender, msg.value, "Error", message);
         // throw;
     }
