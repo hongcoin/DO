@@ -282,7 +282,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // External calls
         if (totalTaxLevied > 0) {
             if (!extraBalance.send(totalTaxLevied))
-                doThrow("xtraBalance:sendFail");
+                doThrow("extraBalance:sendFail");
                 return;
         }
 
@@ -683,7 +683,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         returnCollected[msg.sender] = true;
 
         if(!ReturnAccount.send(valueToReturn)){
-            throw;
+            doThrow("failed:collectReturn");
         }
     }
 
@@ -694,16 +694,18 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
         if(!isKickoffEnabled[currentFiscalYear] || isFreezeEnabled || isHarvestEnabled){
             evMgmtInvestProject(msg.sender, msg.value, _projectWallet, _amount, false);
-            throw;
+            return;
         }
 
         if(_amount >= actualBalance()){
-            throw;
+            doThrow("failed:mgmtInvestProject: amount >= actualBalance");
+            return;
         }
 
         // send the balance (_amount) to _projectWallet
         if (!_projectWallet.call.value(_amount)()) {
-            throw;
+            doThrow("failed:mgmtInvestProject: cannot send send to _projectWallet");
+            return;
         }
 
         // Initiate event
@@ -735,7 +737,12 @@ contract HONG is HONGInterface, Token, TokenCreation {
         if (isFundLocked && super.transfer(_to, _value)) {
             return true;
         } else {
-            throw;
+            if(!isFundLocked){
+                doThrow("failed:transfer: isFundLocked is false");
+            }else{
+                doThrow("failed:transfer: cannot send send to _projectWallet");
+            }
+            return;
         }
     }
 
