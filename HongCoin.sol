@@ -19,9 +19,9 @@ along with the HONG.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 contract ErrorHandler {
-    event evRecord(string eventType, string msg);
-    function doThrow(string msg) {
-        evRecord("Error", msg);
+    event evRecord(address msg_sender, uint msg_value, string eventType, string message);
+    function doThrow(string message) {
+        evRecord(msg.sender, msg.value, "Error", message);
         // throw;
     }
 }
@@ -34,7 +34,7 @@ contract TokenInterface is ErrorHandler {
     function balanceOf(address _owner) constant returns (uint256 balance);
     function transfer(address _to, uint256 _amount) returns (bool success);
 
-    event evTransfer(address indexed _from, address indexed _to, uint256 _amount);
+    event evTransfer(address msg_sender, uint msg_value, address indexed _from, address indexed _to, uint256 _amount);
 
     // Modifier that allows only shareholders to trigger
     modifier onlyTokenHolders {
@@ -60,7 +60,7 @@ contract Token is TokenInterface {
         balances[msg.sender] -= _amount;
         balances[_to] += _amount;
 
-        evTransfer(msg.sender, _to, _amount);
+        evTransfer(msg.sender, msg.value, msg.sender, _to, _amount);
 
         return true;
     }
@@ -90,7 +90,7 @@ contract ManagedAccountInterface is ErrorHandler {
     function payOwnerAmount(uint _amount) onlyOwner noEther;
     function actualBalance() returns (uint);
 
-    event evPayOut(address indexed _recipient, uint _amount);
+    event evPayOut(address msg_sender, uint msg_value, address indexed _recipient, uint _amount);
 }
 
 
@@ -121,7 +121,7 @@ contract ManagedAccount is ManagedAccountInterface{
         if (!_recipient.send(_amount))
             doThrow("payOut:sendFailed");
         else
-            evPayOut(_recipient, _amount);
+            evPayOut(msg.sender, msg.value, _recipient, _amount);
     }
 
     // consistent with HONG contract
@@ -151,9 +151,9 @@ contract TokenCreationInterface {
     function refund();
     function divisor() constant returns (uint divisor);
 
-    event evMinTokensReached(uint value);
-    event evCreatedToken(address indexed to, uint amount);
-    event evRefund(address indexed to, uint value, bool result);
+    event evMinTokensReached(address msg_sender, uint msg_value, uint value);
+    event evCreatedToken(address msg_sender, uint msg_value, address indexed to, uint amount);
+    event evRefund(address msg_sender, uint msg_value, address indexed to, uint value, bool result);
 }
 
 
@@ -214,13 +214,13 @@ contract GovernanceInterface is ErrorHandler {
         uint _amount
     ) returns (bool);
 
-    event evIssueManagementFee(uint _amount, bool _success);
-    event evMgmtIssueBountyToken(address _recipientAddress, uint _amount, bool _success);
-    event evMgmtDistributed(uint256 _amount, bool _success);
-    event evMgmtInvestProject(address _projectWallet, uint _amount, bool result);
+    event evIssueManagementFee(address msg_sender, uint msg_value, uint _amount, bool _success);
+    event evMgmtIssueBountyToken(address msg_sender, uint msg_value, address _recipientAddress, uint _amount, bool _success);
+    event evMgmtDistributed(address msg_sender, uint msg_value, uint256 _amount, bool _success);
+    event evMgmtInvestProject(address msg_sender, uint msg_value, address _projectWallet, uint _amount, bool result);
 
     // Triggered when the minTokensToCreate is reached
-    event evLockFund();
+    event evLockFund(address msg_sender, uint msg_value);
 }
 
 
@@ -282,7 +282,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // External calls
         if (totalTaxLevied > 0) {
             if (!extraBalance.send(totalTaxLevied))
-                doThrow("xtraBalance:sendFail");
+                doThrow("extraBalance:sendFail");
                 return;
         }
 
@@ -295,9 +295,9 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         }
 
         // Events.  Safe to publish these now that we know it all worked
-        evCreatedToken(_tokenHolder, tokensSupplied);
-        if (!wasMinTokensReached && isMinTokensReached()) evMinTokensReached(tokensCreated);
-        if (isFundLocked) evLockFund();
+        evCreatedToken(msg.sender, msg.value, _tokenHolder, tokensSupplied);
+        if (!wasMinTokensReached && isMinTokensReached()) evMinTokensReached(msg.sender, msg.value, tokensCreated);
+        if (isFundLocked) evLockFund(msg.sender, msg.value);
         return true;
     }
 
@@ -333,13 +333,13 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // If that works, then do a refund
         if (!msg.sender.send(amountToRefund)) {
-            evRefund(msg.sender, amountToRefund, false);
+            evRefund(msg.sender, msg.value, msg.sender, amountToRefund, false);
             doThrow("refund:SendFailed");
             return;
         }
 
-        evRefund(msg.sender, amountToRefund, true);
-        if (!wasMinTokensReached && isMinTokensReached()) evMinTokensReached(tokensCreated);
+        evRefund(msg.sender, msg.value, msg.sender, amountToRefund, true);
+        if (!wasMinTokensReached && isMinTokensReached()) evMinTokensReached(msg.sender, msg.value, tokensCreated);
     }
 
     // Using a function rather than a state variable, as it reduces the risk of inconsistent state
@@ -360,7 +360,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         bountyTokensCreated += _amount;
 
         // event
-        evMgmtIssueBountyToken(_recipientAddress, _amount, true);
+        evMgmtIssueBountyToken(msg.sender, msg.value, _recipientAddress, _amount, true);
 
     }
 
@@ -393,7 +393,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // remaining fund: token holder can claim starting from this point
         // the total amount harvested/ to be distributed
-        evMgmtDistributed(ReturnAccount.actualBalance(), true);
+        evMgmtDistributed(msg.sender, msg.value, ReturnAccount.actualBalance(), true);
         isDistributionInProgress = false;
     }
 
@@ -518,9 +518,9 @@ contract HONGInterface is ErrorHandler {
     function collectReturn();
 
     // Trigger the following events when the voting result is available
-    event evKickoff(uint _fiscal);
-    event evFreeze();
-    event evHarvest();
+    event evKickoff(address msg_sender, uint msg_value, uint _fiscal);
+    event evFreeze(address msg_sender, uint msg_value);
+    event evHarvest(address msg_sender, uint msg_value);
 }
 
 
@@ -640,8 +640,8 @@ contract HONG is HONGInterface, Token, TokenCreation {
             // transfer 2% annual management fee from reservedWallet to mgmtWallet (external)
             ManagementFeePoolWallet.payOwnerAmount(annualManagementFee);
 
-            evKickoff(_fiscal);
-            evIssueManagementFee(annualManagementFee, true);
+            evKickoff(msg.sender, msg.value, _fiscal);
+            evIssueManagementFee(msg.sender, msg.value, annualManagementFee, true);
         }
     }
 
@@ -654,7 +654,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         if(supportFreezeQuorum * 2 > (tokensCreated + bountyTokensCreated)){ // 50%
             isFreezeEnabled = true;
             distributeDownstream(0);
-            evFreeze();
+            evFreeze(msg.sender, msg.value);
         }
     }
 
@@ -671,7 +671,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
         if(supportHarvestQuorum * 2 > (tokensCreated + bountyTokensCreated)){ // 50%
             isHarvestEnabled = true;
-            evHarvest();
+            evHarvest(msg.sender, msg.value);
         }
     }
 
@@ -683,7 +683,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         returnCollected[msg.sender] = true;
 
         if(!ReturnAccount.send(valueToReturn)){
-            throw;
+            doThrow("failed:collectReturn");
         }
     }
 
@@ -693,21 +693,23 @@ contract HONG is HONGInterface, Token, TokenCreation {
     ) noEther onlyManagementBody returns (bool _success) {
 
         if(!isKickoffEnabled[currentFiscalYear] || isFreezeEnabled || isHarvestEnabled){
-            evMgmtInvestProject(_projectWallet, _amount, false);
-            throw;
+            evMgmtInvestProject(msg.sender, msg.value, _projectWallet, _amount, false);
+            return;
         }
 
         if(_amount >= actualBalance()){
-            throw;
+            doThrow("failed:mgmtInvestProject: amount >= actualBalance");
+            return;
         }
 
         // send the balance (_amount) to _projectWallet
         if (!_projectWallet.call.value(_amount)()) {
-            throw;
+            doThrow("failed:mgmtInvestProject: cannot send send to _projectWallet");
+            return;
         }
 
         // Initiate event
-        evMgmtInvestProject(_projectWallet, _amount, true);
+        evMgmtInvestProject(msg.sender, msg.value, _projectWallet, _amount, true);
     }
 
     function transfer(address _to, uint256 _value) returns (bool success) {
@@ -735,7 +737,12 @@ contract HONG is HONGInterface, Token, TokenCreation {
         if (isFundLocked && super.transfer(_to, _value)) {
             return true;
         } else {
-            throw;
+            if(!isFundLocked){
+                doThrow("failed:transfer: isFundLocked is false");
+            }else{
+                doThrow("failed:transfer: cannot send send to _projectWallet");
+            }
+            return;
         }
     }
 
