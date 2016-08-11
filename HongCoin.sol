@@ -165,6 +165,7 @@ contract GovernanceInterface is ErrorHandler {
     // This value is automatically set, and CANNOT be reversed.
     bool public isFundLocked;
     modifier notLocked() {if (isFundLocked) doThrow("notLocked"); else {_}}
+    modifier onlyLocked() {if (!isFundLocked) doThrow("onlyLocked"); else {_}}
     modifier onlyHarvestEnabled() {if (!isHarvestEnabled) doThrow("onlyHarvestEnabled"); else {_}}
     modifier onlyDistributionNotInProgress() {if (isDistributionInProgress) doThrow("onlyDistributionNotInProgress"); else {_}}
     modifier onlyDistributionNotReady() {if (isDistributionReady) doThrow("onlyDistributionNotReady"); else {_}}
@@ -576,7 +577,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
     /*
      * Voting for some critical steps, on blockchain
      */
-    function kickoff() onlyTokenHolders noEther {
+    function kickoff() onlyTokenHolders noEther onlyLocked {
         // this is the only valid fiscal year parameter, so there's no point in letting the caller pass it in.
         // Best case is they get it wrong and we throw, worst case is the get it wrong and there's some exploit
         uint _fiscal = currentFiscalYear + 1;
@@ -647,7 +648,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         }
     }
 
-    function freeze() onlyTokenHolders noEther notFinalFiscalYear onlyDistributionNotInProgress {
+    function freeze() onlyTokenHolders noEther onlyLocked notFinalFiscalYear onlyDistributionNotInProgress {
 
         supportFreezeQuorum -= votedFreeze[msg.sender];
         supportFreezeQuorum += balances[msg.sender];
@@ -665,7 +666,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         votedFreeze[msg.sender] = 0;
     }
 
-    function harvest() onlyTokenHolders noEther onlyFinalFiscalYear onlyVoteHarvestOnce {
+    function harvest() onlyTokenHolders noEther onlyLocked onlyFinalFiscalYear onlyVoteHarvestOnce {
 
         supportHarvestQuorum -= votedHarvest[msg.sender];
         supportHarvestQuorum += balances[msg.sender];
