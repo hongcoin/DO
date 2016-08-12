@@ -18,8 +18,12 @@ describe('HONG Contract Suite', function() {
   var ownerAddress = '0xcd2a3d9f938e13cd947ec05abc7fe734df8dd826';
   var fellow1 = '0xf6adcaf7bbaa4f88a554c45287e2d1ecb38ac5ff';
   var fellow4 = '0xd0782de398e9eaa3eced0b853b8b2512ffa430e7';
-  var endDate = 1470675600;
-  var extensionPeriod = 60 * 60; // 1 hour
+  var SECOND = 1; // EVM time units are in seconds (not millis)
+  var MINUTE = 60 * SECOND;
+  var HOUR = 60 * MINUTE;
+  var DAY = 24 * HOUR;
+  var endDate = Date.now() / 1000 + 1 * DAY;
+  var extensionPeriod = 1 * HOUR; // 1 hour
   var eth;
   var hong;
   var eventLogger;
@@ -40,7 +44,6 @@ describe('HONG Contract Suite', function() {
     console.log(' [test-deploy]');
     eth = sandbox.web3.toWei(1, 'ether');
     sandbox.web3.eth.contract(JSON.parse(compiled.contracts['HONG'].interface)).new(
-      ownerAddress,
       ownerAddress,
       endDate,
       {
@@ -69,9 +72,6 @@ describe('HONG Contract Suite', function() {
   */
   it('check-tokensAvail', function(done) {
     console.log(' [check-tokensAvail]');
-    console.log("currentTier: " + hong.getCurrentTier());
-    console.log("tokensCreated: " + hong.tokensCreated());
-    console.log("tokensPerTier: " + hong.tokensPerTier());
     assert.equal(hong.tokensAvailableAtTierInternal(0, 100, 75), 25);
     done();      
   });
@@ -80,26 +80,28 @@ describe('HONG Contract Suite', function() {
    */
   it('refund-before-purchase-fails', function(done) {
     var previousErrorCount = hong.errorCount();
-    validateTransaction(
+    validateTransactions([
         function() { return hong.refund({from: fellow1}) }, 
         function() {
           assert.equal(hong.errorCount() > previousErrorCount, true, "Error count did not increase");
-        },
+        }],
         done);
   });
   
   it('refund-after-purchase-ok', function(done) {
+    console.log("[ refund-after-purchase-ok]")
     var buyer = fellow1;
-    validateTwoTransactions(
+    var previousErrorCount = asNumber(hong.errorCount());
+    validateTransactions([
         function() {
           console.log("Buying tokens...");
           return hong.buyTokens({from: buyer, value: 1*eth});
         },
         function() {
           console.log("Validation Purchase...");
-          assertHongBalance(1*eth);
-          assertTokens(buyer, 100);
-          assert.equal(hong.tokensCreated(), 100);
+          assertEqualN(hong.actualBalance(), 1*eth, done, "hong balance");
+          assertEqualN(hong.balanceOf(buyer), 100, done, "buyer tokens");
+          assertEqualN(hong.tokensCreated(), 100, done, "tokens created");
         },
         function() {
           console.log("Getting a refund...");
@@ -107,87 +109,39 @@ describe('HONG Contract Suite', function() {
         },
         function() {
           console.log("Validating refund...");
-          assertHongBalance(0*eth);
-          assertTokens(buyer, 0);
-          assert.equal(hong.tokensCreated(), 0);
-        },
-        function(err) {
-          console.log("Calling done...");
-          done(err);
+          assertEqualN(hong.actualBalance(), 0*eth, done, "hong balance");
+          assertEqualN(hong.balanceOf(buyer), 0, done, "buyer tokens");
+          assertEqualN(hong.tokensCreated(), 0, done, "tokens created");
+          assertEqualN(asNumber(hong.errorCount()), previousErrorCount, done, "error count");
         }
-    )
-  });
-  
-  function checkForErrorAndThen(done, action) {
-    return function(err) {
-      if (err) done(err);
-      else action();
-    }
-  }
-  
-  /*
-   * Not happy with this.  There must be a better way (without writing a recursive unit test).  
-   * If we can find a way to just make the code actually wait for the tx to complete (rather than 
-   * passing in a callback), the code would be more readable.  e.g. 
-   * doAction1();
-   * validateAction1();
-   * doAction2();
-   * validateAction2();
-   * etc...
-   */
-  function validateTwoTransactions(action1, validation1, action2, validation2, done) {
-    validateTransaction(
-      action1,
-      validation1,
-      checkForErrorAndThen(done, 
-        function() {
-          validateTransaction(
-              action2, 
-              validation2,
-              done
-            );
-      }));
-  }
-  
-  /*
-   * The basic template for simple tests is as follows:  
-   *
-   * validateTransaction(
-   *   function() {
-   *     return doSomeTransaction();
-   *   }, 
-   *   function() {
-   *     assertSomeStuff();
-   *   }, 
-   *   done
-   * );
-   * The "done" function is passed into the test by the framework and should be called when the test completes.
-   */
-  function validateTransaction(transaction, validation, done) {
-      var txHash = transaction();
-      helper.waitForReceipt(sandbox.web3, txHash, function(err, receipt) {
-          if (err) return done(err);
-          validation();
-          console.log("validateTransaction: calling done...");
-          done();
+      ], 
+      function(err) {
+        console.log("Calling done...");
+        done(err);
       });
-  }
+  });
   
   /*
    * The first token request, for 1 Ether shoud get 100 tokens
    */
-  it('create-1', function(done) {
-    console.log("create-1");
+  it('allows token purchase', function(done) {
+    console.log("allows token purchase");
+    console.log("closingTime: " + hong.closingTime());
+
+    // add some hooks to the shutdown process
+    done = logEventsToConsole(done);
+    done = assertEventIsFiredWhenDone(hong.evCreatedToken(), done);
+
     var buyer = ownerAddress;
-    validateTransaction(
+    validateTransactions([
       function() {
         return hong.buyTokens({from: buyer, value: 1*eth});
       }, 
       function() {
-        assertHongBalance(1*eth);
-        assertTokens(buyer, 100);
-        assert.equal(hong.tokensCreated(), 100);
-      }, 
+        assertEqualN(hong.actualBalance(), 1*eth, done, "hong balance");
+        assertEqualN(hong.balanceOf(buyer), 100, done, "buyer tokens");
+        assertEqualN(hong.tokensCreated(), 100, done, "tokens created");
+      }], 
       done
     );
   });
@@ -196,74 +150,152 @@ describe('HONG Contract Suite', function() {
    * The seccond token request, for 1 Ether shoud get another 100 tokens.  
    * It's for the same user, so the total should be 200 tokens
    */
-  it('create-2', function(done) {
+  it('handles multiple purchases from the same buyer', function(done) {
     console.log("create-2");
     var buyer = ownerAddress;
-    validateTransaction(
+    validateTransactions([
       function() {
         return hong.buyTokens({from: buyer, value: 1*eth});
       }, 
       function() {
-        assertHongBalance(2*eth);
-        assertTokens(buyer, 200);
-        assert.equal(hong.tokensCreated(), 200);
-      }, 
+        assertEqualN(hong.actualBalance(), 2*eth, done, "hong balance");
+        assertEqualN(hong.balanceOf(buyer), 200, done, "buyer tokens");
+        assertEqualN(hong.tokensCreated(), 200, done, "tokens created");
+      }], 
       done
     );
   });
   
     /*
    */
-  it('create-3', function(done) {
+  it('tracks total tokens across users', function(done) {
     console.log("create-3");
     var buyer = fellow1;
-    validateTransaction(
+    validateTransactions([
       function() {
         return hong.buyTokens({from: buyer, value: 1*eth});
       }, 
       function() {
-        assertHongBalance(3*eth);
-        assertTokens(buyer, 100);
-        assert.equal(hong.tokensCreated(), 300);
-      }, 
+        assertEqualN(hong.actualBalance(), 3*eth, done, "hong balance");
+        assertEqualN(hong.balanceOf(buyer), 100, done, "buyer tokens");
+        assertEqualN(hong.tokensCreated(), 300, done, "tokens created");
+      }], 
       done
     );
   });
   
-  it('create-nextTier', function(done) {
-    console.log('create-nextTier');
+  it('batches when purchase crosses a tier', function(done) {
+    console.log("[batches when purchase crosses a tier]")
     var buyer = fellow4;
-    validateTransaction(
+    var expectedTotalTokensBefore = 300;
+    var expectedTokensPurchased = 49999997;
+    var expectedTotalTokensAfter = expectedTotalTokensBefore + expectedTokensPurchased;
+    var weiToSend = 500000*eth;
+    
+    
+    // make sure we know the state before we start
+    assertEqualN(hong.tokensCreated(), expectedTotalTokensBefore, done, "initial tokens created");
+    assertEqualN(hong.taxPaid(buyer), 0, done, "initial taxPaid");
+    assertEqualN(hong.extraBalanceAccountBalance(), 0, done, "initial extraBalance");
+    
+    validateTransactions([
         function() {
-          return hong.buyTokens({from: buyer, value: 500000*eth});
+            return hong.buyTokens({from: buyer, value: weiToSend});
         }, 
         function() {
-          console.log(hong.balanceOf(buyer));
-          console.log("tax paid: " + hong.taxPaid(buyer));
-          console.log("extra balance: " + hong.extraBalanceAccountBalance());
-        }, 
+          assertEqualN(hong.balanceOf(buyer), expectedTokensPurchased);
+          assertEqualN(hong.getCurrentTier(), 1, done, "tier");
+          assertEqualN(hong.tokensCreated(), expectedTotalTokensAfter, done, "tokens created");
+          assertEqualN(hong.taxPaid(buyer), 29700000000000000, done, "taxPaid");
+          assertEqualN(hong.extraBalanceAccountBalance(), 29700000000000000, done,"extraBalance");
+        }], 
         done
     );
   });
   
-  function logEventsToConsole() {
+    /*
+   * The basic template for simple tests is as follows:  
+   *
+   * validateTransaction(
+   *   [action1, validation1, action2, validation2, action3, validation3, ...], 
+   *   done
+   * );
+   * The "done" function is passed into the test by the framework and should be called when the test completes.
+   */
+  function validateTransactions(txAndValidation, done) {
+      if (txAndValidation.length == 0) {
+        done();
+        return;
+      }
+      
+      assertEqualN(txAndValidation.length%2, 0, done, "Array should have action-validation pairs [action1, validation1, action2, validation2, ...]");
+      
+      // grab the next transaction and validation
+      var nextTx = txAndValidation.shift();
+      var nextValidation = txAndValidation.shift();
+      
+      var txHash = nextTx();
+      console.log("Wating for tx " + txHash);
+      helper.waitForReceipt(sandbox.web3, txHash, function(err, receipt) {
+          console.log("tx done " + txHash);
+          if (err) return done(err);
+          nextValidation();
+          validateTransactions(txAndValidation, done);
+      });
+  }
+  
+  function assertEqualN(a, b, done, msg) {
+    assertEqual(asNumber(a), asNumber(b), done, msg);
+  }
+  
+  function assertEqual(a, b, done, msg) {
+    if (!(a === b)) {
+      done(new Error("Failed the '" + msg + "' check, '" + a + "' != '" + b + "'"));
+      sandbox.stop(done);
+      assert(false, msg); // force an exception
+    }
+  }
+  
+  function asNumber(ethNumber) {
+    return sandbox.web3.toBigNumber(ethNumber).toNumber();
+  }
+  
+  function assertEventIsFiredWhenDone(eventType, done) {
+    var eventCount = 0;
+    eventType.watch(function(err, val) {
+      if (err) done(err);
+      else eventCount++;
+    });
+    return function(err) {
+      console.log("Calling done...");
+      eventType.stopWatching();
+      if (eventCount == 0) {
+        done(new Error("Exepected event was not logged!"));
+      }
+      else {
+        done(err);
+      }
+    };
+  }
+  
+  function logEventsToConsole(done) {
     var filter = hong.evRecord();
     filter.watch(function(err, val) {
-      console.log(val.args.eventType + ": " + val.args.msg);
+      console.log(JSON.stringify(val.args));
+      if (err) {
+          done(err);
+          return;
+      }
     });
-    return filter;
-  }
-  
-  function assertTokens(buyer, expectedTokenTotal) {
-    assert.equal(hong.balanceOf(buyer), expectedTokenTotal);
-  }
-  
-  function assertHongBalance(expectedHongBalance) {
-    assert.equal(hong.actualBalance(), expectedHongBalance);
+    return function(err) {
+      filter.stopWatching();
+      done(err);
+    };
   }
   
   after(function(done) {
-    eventLogger.stopWatching();
+    console.log("Shutting down sandbox");
+    // eventLogger.stopWatching();
     sandbox.stop(done);
   });
 });
