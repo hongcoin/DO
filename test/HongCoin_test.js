@@ -101,7 +101,7 @@ describe('HONG Contract Suite', function() {
           console.log("Validation Purchase...");
           assertEqualN(hong.actualBalance(), 1*eth, done, "hong balance");
           assertEqualN(hong.balanceOf(buyer), 100, done, "buyer tokens");
-          assertEqualN(hong.tokensCreated(), 100);
+          assertEqualN(hong.tokensCreated(), 100, done, "tokens created");
         },
         function() {
           console.log("Getting a refund...");
@@ -111,8 +111,8 @@ describe('HONG Contract Suite', function() {
           console.log("Validating refund...");
           assertEqualN(hong.actualBalance(), 0*eth, done, "hong balance");
           assertEqualN(hong.balanceOf(buyer), 0, done, "buyer tokens");
-          assertEqualN(hong.tokensCreated(), 0);
-          assertEqualN(asNumber(hong.errorCount()), previousErrorCount);
+          assertEqualN(hong.tokensCreated(), 0, done, "tokens created");
+          assertEqualN(asNumber(hong.errorCount()), previousErrorCount, done, "error count");
         }
       ], 
       function(err) {
