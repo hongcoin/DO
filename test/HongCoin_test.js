@@ -18,8 +18,12 @@ describe('HONG Contract Suite', function() {
   var ownerAddress = '0xcd2a3d9f938e13cd947ec05abc7fe734df8dd826';
   var fellow1 = '0xf6adcaf7bbaa4f88a554c45287e2d1ecb38ac5ff';
   var fellow4 = '0xd0782de398e9eaa3eced0b853b8b2512ffa430e7';
-  var endDate = 1470675600;
-  var extensionPeriod = 60 * 60; // 1 hour
+  var SECOND = 1; // EVM time units are in seconds (not millis)
+  var MINUTE = 60 * SECOND;
+  var HOUR = 60 * MINUTE;
+  var DAY = 24 * HOUR;
+  var endDate = Date.now() / 1000 + 1 * DAY;
+  var extensionPeriod = 1 * HOUR; // 1 hour
   var eth;
   var hong;
   var eventLogger;
@@ -40,7 +44,6 @@ describe('HONG Contract Suite', function() {
     console.log(' [test-deploy]');
     eth = sandbox.web3.toWei(1, 'ether');
     sandbox.web3.eth.contract(JSON.parse(compiled.contracts['HONG'].interface)).new(
-      ownerAddress,
       ownerAddress,
       endDate,
       {
@@ -122,9 +125,12 @@ describe('HONG Contract Suite', function() {
    * The first token request, for 1 Ether shoud get 100 tokens
    */
   it('allows token purchase', function(done) {
-    console.log("create-1");
-    var events = [];
-    done = captureEvents(hong.evCreatedToken(), events, done);
+    console.log("allows token purchase");
+    console.log("closingTime: " + hong.closingTime());
+
+    // add some hooks to the shutdown process
+    done = logEventsToConsole(done);
+    done = assertEventIsFiredWhenDone(hong.evCreatedToken(), done);
 
     var buyer = ownerAddress;
     validateTransactions([
@@ -135,7 +141,6 @@ describe('HONG Contract Suite', function() {
         assertEqualN(hong.actualBalance(), 1*eth, done, "hong balance");
         assertEqualN(hong.balanceOf(buyer), 100, done, "buyer tokens");
         assertEqualN(hong.tokensCreated(), 100, done, "tokens created");
-        assertEqualN(events.length, 1, done, "expected events");
       }], 
       done
     );
@@ -225,8 +230,10 @@ describe('HONG Contract Suite', function() {
       
       assertEqualN(txAndValidation.length%2, 0, done, "Array should have action-validation pairs [action1, validation1, action2, validation2, ...]");
       
+      // grab the next transaction and validation
       var nextTx = txAndValidation.shift();
       var nextValidation = txAndValidation.shift();
+      
       var txHash = nextTx();
       console.log("Wating for tx " + txHash);
       helper.waitForReceipt(sandbox.web3, txHash, function(err, receipt) {
@@ -243,8 +250,9 @@ describe('HONG Contract Suite', function() {
   
   function assertEqual(a, b, done, msg) {
     if (!(a === b)) {
-      done("Failed the '" + msg + "' check, '" + a + "' != '" + b + "'");
-      // assert(false, msg); // force an exception
+      done(new Error("Failed the '" + msg + "' check, '" + a + "' != '" + b + "'"));
+      sandbox.stop(done);
+      assert(false, msg); // force an exception
     }
   }
   
@@ -252,26 +260,37 @@ describe('HONG Contract Suite', function() {
     return sandbox.web3.toBigNumber(ethNumber).toNumber();
   }
   
-  function captureEvents(eventType, array, done) {
+  function assertEventIsFiredWhenDone(eventType, done) {
+    var eventCount = 0;
     eventType.watch(function(err, val) {
       if (err) done(err);
-      else array.push(val);
+      else eventCount++;
     });
     return function(err) {
       console.log("Calling done...");
       eventType.stopWatching();
-      done(err);
+      if (eventCount == 0) {
+        done(new Error("Exepected event was not logged!"));
+      }
+      else {
+        done(err);
+      }
     };
   }
   
-  function logEventsToConsole() {
-    /*
+  function logEventsToConsole(done) {
     var filter = hong.evRecord();
     filter.watch(function(err, val) {
-      console.log(val.args.eventType + ": " + val.args.msg);
+      console.log(JSON.stringify(val.args));
+      if (err) {
+          done(err);
+          return;
+      }
     });
-    return filter;
-    */
+    return function(err) {
+      filter.stopWatching();
+      done(err);
+    };
   }
   
   after(function(done) {
