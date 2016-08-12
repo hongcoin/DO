@@ -29,7 +29,7 @@ describe('HONG Contract Suite', function() {
   var HOUR = 60 * MINUTE;
   var DAY = 24 * HOUR;
   var endDate = Date.now() / 1000 + 1 * DAY;
-  var extensionPeriod = 30 * SECOND; // 1 hour
+  var maxDeploymentGas = 4800000;
   var eth;
   var hong;
 
@@ -67,7 +67,12 @@ describe('HONG Contract Suite', function() {
           var receipt = sandbox.web3.eth.getTransactionReceipt(contract.transactionHash);
           console.log("Gas used: " + receipt.gasUsed);
           hong = contract;
-          done();
+          if (receipt.gasUsed > maxDeploymentGas) {
+              done(new Error("Gas used to deploy contract exceeds gasLimit!"));
+          }
+          else {
+            done();
+          }
         }
       }
     );
