@@ -164,8 +164,10 @@ contract GovernanceInterface is ErrorHandler {
     // The variable indicating whether the fund has achieved the inital goal or not.
     // This value is automatically set, and CANNOT be reversed.
     bool public isFundLocked;
+    bool public isFundReleased;
     modifier notLocked() {if (isFundLocked) doThrow("notLocked"); else {_}}
     modifier onlyLocked() {if (!isFundLocked) doThrow("onlyLocked"); else {_}}
+    modifier notReleased() {if (isFundReleased) doThrow("notReleased"); else {_}}
     modifier onlyHarvestEnabled() {if (!isHarvestEnabled) doThrow("onlyHarvestEnabled"); else {_}}
     modifier onlyDistributionNotInProgress() {if (isDistributionInProgress) doThrow("onlyDistributionNotInProgress"); else {_}}
     modifier onlyDistributionNotReady() {if (isDistributionReady) doThrow("onlyDistributionNotReady"); else {_}}
@@ -242,7 +244,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     }
 
-    function createTokenProxy(address _tokenHolder) notLocked hasEther returns (bool success) {
+    function createTokenProxy(address _tokenHolder) notLocked notReleased hasEther returns (bool success) {
 
         // Business logic (but no state changes)
         // setup transaction details
@@ -412,12 +414,18 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     }
 
     function tryToLockFund() internal {
+        // ICO Diagram: https://github.com/hongcoin/DO/wiki/ICO-Period-and-Target
+        // Case A
         isFundLocked = isMaxTokensReached();
+
         // if we've reached the 30 day mark, try to lock the fund
         if (!isFundLocked && !isDayThirtyChecked && (now >= closingTime)) {
             if (isMinTokensReached()) {
+                // Case B
                 isFundLocked = true;
+                evRecord(msg.sender, msg.value, "event", "isFundLocked = true");
             }
+            evRecord(msg.sender, msg.value, "event", "isDayThirtyChecked = true");
             isDayThirtyChecked = true;
         }
 
@@ -425,9 +433,19 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // TEST closingTimeExtensionPeriod = 30 days
         if (!isFundLocked && !isDaySixtyChecked && (now >= (closingTime + 30 days))) {
             if (isMinTokensReached()) {
+                // Case C
                 isFundLocked = true;
+                evRecord(msg.sender, msg.value, "event", "isFundLocked = true");
             }
+            evRecord(msg.sender, msg.value, "event", "isDaySixtyChecked = true");
             isDaySixtyChecked = true;
+        }
+
+        if (isDaySixtyChecked && !isMinTokensReached()) {
+            // Case D
+            // Mark the release state. No fund should be accepted anymore
+            evRecord(msg.sender, msg.value, "event", "isFundReleased = true");
+            isFundReleased = true;
         }
     }
 
