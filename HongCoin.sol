@@ -19,10 +19,10 @@ along with the HONG.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 contract ErrorHandler {
-    uint public errorCount = 0;
+    // uint public errorCount = 0;
     event evRecord(address msg_sender, uint msg_value, string eventType, string message);
     function doThrow(string message) {
-        errorCount++;
+        // errorCount++;
         evRecord(msg.sender, msg.value, "Error", message);
         // throw;
     }
@@ -167,7 +167,6 @@ contract GovernanceInterface is ErrorHandler {
     bool public isFundReleased;
     modifier notLocked() {if (isFundLocked) doThrow("notLocked"); else {_}}
     modifier onlyLocked() {if (!isFundLocked) doThrow("onlyLocked"); else {_}}
-    modifier notReleased() {if (isFundReleased) doThrow("notReleased"); else {_}}
     modifier onlyHarvestEnabled() {if (!isHarvestEnabled) doThrow("onlyHarvestEnabled"); else {_}}
     modifier onlyDistributionNotInProgress() {if (isDistributionInProgress) doThrow("onlyDistributionNotInProgress"); else {_}}
     modifier onlyDistributionNotReady() {if (isDistributionReady) doThrow("onlyDistributionNotReady"); else {_}}
@@ -244,7 +243,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     }
 
-    function createTokenProxy(address _tokenHolder) notLocked notReleased hasEther returns (bool success) {
+    function createTokenProxy(address _tokenHolder) notLocked hasEther returns (bool success) {
 
         // Business logic (but no state changes)
         // setup transaction details
@@ -415,6 +414,12 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function tryToLockFund() internal {
         // ICO Diagram: https://github.com/hongcoin/DO/wiki/ICO-Period-and-Target
+
+        if (isFundReleased) {
+            // Do not change the state anymore
+            return;
+        }
+
         // Case A
         isFundLocked = isMaxTokensReached();
 
@@ -423,9 +428,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             if (isMinTokensReached()) {
                 // Case B
                 isFundLocked = true;
-                evRecord(msg.sender, msg.value, "event", "isFundLocked = true");
             }
-            evRecord(msg.sender, msg.value, "event", "isDayThirtyChecked = true");
             isDayThirtyChecked = true;
         }
 
@@ -435,16 +438,13 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             if (isMinTokensReached()) {
                 // Case C
                 isFundLocked = true;
-                evRecord(msg.sender, msg.value, "event", "isFundLocked = true");
             }
-            evRecord(msg.sender, msg.value, "event", "isDaySixtyChecked = true");
             isDaySixtyChecked = true;
         }
 
         if (isDaySixtyChecked && !isMinTokensReached()) {
             // Case D
             // Mark the release state. No fund should be accepted anymore
-            evRecord(msg.sender, msg.value, "event", "isFundReleased = true");
             isFundReleased = true;
         }
     }
