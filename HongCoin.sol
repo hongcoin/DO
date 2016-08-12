@@ -347,11 +347,11 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     }
 
     // Using a function rather than a state variable, as it reduces the risk of inconsistent state
-    function isMinTokensReached() returns (bool) {
+    function isMinTokensReached() constant returns (bool) {
         return tokensCreated >= minTokensToCreate;
     }
 
-    function isMaxTokensReached() returns (bool) {
+    function isMaxTokensReached() constant returns (bool) {
         return tokensCreated >= maxTokensToCreate;
     }
 
@@ -408,8 +408,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     }
 
     function min(uint a, uint b) constant internal returns (uint) {
-        if (a < b) return a;
-        return b;
+        return (a < b) ? a : b;
     }
 
     function tryToLockFund() internal {
@@ -457,8 +456,10 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             tierThreshold = maxTokensToCreate;
         }
 
-        // this shouldn't happen since the fund should be locked when we hit the max
-        if (_tokensCreated > tierThreshold) {doThrow("tooManyTokens"); return 0;}
+        if (_tokensCreated > tierThreshold) {
+            doThrow("more than maxTokens created!");
+            return 0;
+        }
 
         return tierThreshold - _tokensCreated;
     }
@@ -469,8 +470,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     function getCurrentTier() constant returns (uint8) {
         uint8 tier = (uint8) (tokensCreated / tokensPerTier);
-        if (tier > 4) doThrow("tierToBig");
-        return tier;
+        return (tier > 4) ? 4 : tier;
     }
 
     function divisor() constant returns (uint divisor) {
@@ -481,19 +481,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // The number of (base unit) tokens per wei is calculated
         // as `msg.value` * 100 / `divisor`
 
-        // TODO: We could call getCurrentTier here to avoid duplicating this logic
-
-        if(tokensCreated < tokensPerTier){
-            return 100;
-        } else if (tokensCreated < 2 * tokensPerTier){
-            return 101;
-        } else if (tokensCreated < 3 * tokensPerTier){
-            return 102;
-        } else if (tokensCreated < 4 * tokensPerTier){
-            return 103;
-        } else {
-            return 104;
-        }
+        return 100 + getCurrentTier();
     }
 }
 
