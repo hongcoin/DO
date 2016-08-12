@@ -16,17 +16,22 @@ describe('HONG Contract Suite', function() {
 
   var compiled = helper.compile('./', ['HongCoin.sol']);
   var ownerAddress = '0xcd2a3d9f938e13cd947ec05abc7fe734df8dd826';
-  var fellow1 = '0xf6adcaf7bbaa4f88a554c45287e2d1ecb38ac5ff';
+  var fellow1 = '0xcd2a3d9f938e13cd947ec05abc7fe734df8dd826';
+  var fellow2 = '0xdedb49385ad5b94a16f236a6890cf9e0b1e30392';
+  var fellow3 = '0xf6adcaf7bbaa4f88a554c45287e2d1ecb38ac5ff';
   var fellow4 = '0xd0782de398e9eaa3eced0b853b8b2512ffa430e7';
+  var fellow5 = '0x9c7fa8b011a04e918dfdf6f2c37626b4de04513c';
+  var fellow6 = '0xa5ba148282334f30d0e7499791ccd5fcaaafe558';
+  var fellow7 = '0xf58366fc9d73d88b27fbbc35f1efd21232a38ce6'; 
+  var fellow8 = '0x1ee52b26b2362ea0afb42785e0c7f3400fffac0b';
   var SECOND = 1; // EVM time units are in seconds (not millis)
   var MINUTE = 60 * SECOND;
   var HOUR = 60 * MINUTE;
   var DAY = 24 * HOUR;
   var endDate = Date.now() / 1000 + 1 * DAY;
-  var extensionPeriod = 1 * HOUR; // 1 hour
+  var extensionPeriod = 30 * SECOND; // 1 hour
   var eth;
   var hong;
-  var eventLogger;
 
   before(function(done) {
     sandbox.start(__dirname + '/ethereum.json', done);
@@ -58,8 +63,10 @@ describe('HONG Contract Suite', function() {
         if (err) done(err);
         else if (contract.address){
           console.log("Contract at : " + contract.address);
+          console.log("Contract tx hash: " + contract.transactionHash);
+          var receipt = sandbox.web3.eth.getTransactionReceipt(contract.transactionHash);
+          console.log("Gas used: " + receipt.gasUsed);
           hong = contract;
-          eventLogger = logEventsToConsole(done);
           done();
         }
       }
@@ -79,19 +86,19 @@ describe('HONG Contract Suite', function() {
   /*
    */
   it('refund-before-purchase-fails', function(done) {
-    var previousErrorCount = hong.errorCount();
+    // TODO: validate the specifics of the event
+    done = assertEventIsFiredWhenDone(hong.evRecord(), done);
     validateTransactions([
-        function() { return hong.refund({from: fellow1}) }, 
-        function() {
-          assert.equal(hong.errorCount() > previousErrorCount, true, "Error count did not increase");
-        }],
+        function() { return hong.refund({from: fellow3}) }, 
+        function() {} ],
         done);
   });
   
   it('refund-after-purchase-ok', function(done) {
     console.log("[ refund-after-purchase-ok]")
-    var buyer = fellow1;
-    var previousErrorCount = asNumber(hong.errorCount());
+    var buyer = fellow3;
+    done = assertEventIsFiredWhenDone(hong.evCreatedToken(), done);
+    done = assertEventIsFiredWhenDone(hong.evRefund(), done);
     validateTransactions([
         function() {
           console.log("Buying tokens...");
@@ -112,7 +119,6 @@ describe('HONG Contract Suite', function() {
           assertEqualN(hong.actualBalance(), 0*eth, done, "hong balance");
           assertEqualN(hong.balanceOf(buyer), 0, done, "buyer tokens");
           assertEqualN(hong.tokensCreated(), 0, done, "tokens created");
-          assertEqualN(asNumber(hong.errorCount()), previousErrorCount, done, "error count");
         }
       ], 
       function(err) {
@@ -170,7 +176,7 @@ describe('HONG Contract Suite', function() {
    */
   it('tracks total tokens across users', function(done) {
     console.log("create-3");
-    var buyer = fellow1;
+    var buyer = fellow3;
     validateTransactions([
       function() {
         return hong.buyTokens({from: buyer, value: 1*eth});
@@ -213,6 +219,24 @@ describe('HONG Contract Suite', function() {
     );
   });
   
+  it('locks fund when maxTokens it hit', function(done) {
+    var buyer = fellow5;
+    var weiToSend = 5*500000*eth;
+    
+    done = logEventsToConsole(done);
+    
+    validateTransactions([
+      function() {
+        return hong.buyTokens({from: buyer, value: weiToSend});
+        }, 
+        function() {
+          assertEqual(hong.isMaxTokensReached(), true, done, "max tokens");
+          assertEqual(hong.isFundLocked(), true, done, "fund locked");
+        }],
+        done
+    );
+  });
+  
     /*
    * The basic template for simple tests is as follows:  
    *
@@ -244,13 +268,13 @@ describe('HONG Contract Suite', function() {
       });
   }
   
-  function assertEqualN(a, b, done, msg) {
-    assertEqual(asNumber(a), asNumber(b), done, msg);
+  function assertEqualN(expected, actual, done, msg) {
+    assertEqual(asNumber(expected), asNumber(actual), done, msg);
   }
   
-  function assertEqual(a, b, done, msg) {
-    if (!(a === b)) {
-      done(new Error("Failed the '" + msg + "' check, '" + a + "' != '" + b + "'"));
+  function assertEqual(expected, actual, done, msg) {
+    if (!(expected === actual)) {
+      done(new Error("Failed the '" + msg + "' check, '" + expected + "' != '" + actual + "'"));
       sandbox.stop(done);
       assert(false, msg); // force an exception
     }
@@ -259,7 +283,7 @@ describe('HONG Contract Suite', function() {
   function asNumber(ethNumber) {
     return sandbox.web3.toBigNumber(ethNumber).toNumber();
   }
-  
+
   function assertEventIsFiredWhenDone(eventType, done) {
     var eventCount = 0;
     eventType.watch(function(err, val) {
@@ -270,7 +294,7 @@ describe('HONG Contract Suite', function() {
       console.log("Calling done...");
       eventType.stopWatching();
       if (eventCount == 0) {
-        done(new Error("Exepected event was not logged!"));
+        done(new Error("Expected event was not logged!"));
       }
       else {
         done(err);
