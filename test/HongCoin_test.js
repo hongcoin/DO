@@ -91,8 +91,11 @@ describe('HONG Contract Suite', function() {
   /*
    */
   it('refund-before-purchase-fails', function(done) {
-    // TODO: validate the specifics of the event
-    done = assertEventIsFiredWhenDone(hong.evRecord(), done);
+    done = assertEventIsFired(hong.evRecord(), done, function(event) {
+      return event.message == "onlyTokenHolders";
+    });
+    
+    assertEqualN(0, hong.balanceOf(fellow3), done, "buyer has no tokens");
     validateTransactions([
         function() { return hong.refund({from: fellow3}) }, 
         function() {} ],
@@ -102,8 +105,8 @@ describe('HONG Contract Suite', function() {
   it('refund-after-purchase-ok', function(done) {
     console.log("[ refund-after-purchase-ok]")
     var buyer = fellow3;
-    done = assertEventIsFiredWhenDone(hong.evCreatedToken(), done);
-    done = assertEventIsFiredWhenDone(hong.evRefund(), done);
+    done = assertEventIsFired(hong.evCreatedToken(), done);
+    done = assertEventIsFired(hong.evRefund(), done);
     validateTransactions([
         function() {
           console.log("Buying tokens...");
@@ -141,7 +144,7 @@ describe('HONG Contract Suite', function() {
 
     // add some hooks to the shutdown process
     done = logEventsToConsole(done);
-    done = assertEventIsFiredWhenDone(hong.evCreatedToken(), done);
+    done = assertEventIsFired(hong.evCreatedToken(), done);
 
     var buyer = ownerAddress;
     validateTransactions([
@@ -243,6 +246,57 @@ describe('HONG Contract Suite', function() {
   });
   
     /*
+   */
+  it('does not allow refunds after fund is locked', function(done) {
+    var buyer = fellow3;
+    var tokensBefore = hong.balanceOf(buyer);
+    var hongBalanceBefore = hong.actualBalance();
+    
+    done = assertEventIsFired(hong.evRecord(), done, function(event) {
+      return event.message == "notLocked";
+    });
+    done = logEventsToConsole(done);
+    
+    assertTrue(asNumber(tokensBefore) > 0, done, "buyer has tokens");
+    validateTransactions([
+        function() { return hong.refund({from: buyer}) }, 
+        function() {
+          assertEqualN(tokensBefore, hong.balanceOf(buyer), done, "tokens unchanged");
+          assertEqualN(hongBalanceBefore, hong.actualBalance(), done, "hong balance");
+        }],
+        done);
+  });
+
+  describe("after ICO", function() {
+  });
+
+  describe("mgmt only", function() {
+    it ('does not allow others to call mgmtDistribute', function(done) {
+      done = assertEventIsFiredByName(hong.evRecord(), done, "onlyManagementBody");
+      validateTransactions([
+          function() {return hong.mgmtDistribute({from: fellow4})},
+          function() {}
+        ], done);
+    });
+    
+    it ('does not allow others to call mgmtIssueBountyToken', function(done) {
+      done = assertEventIsFiredByName(hong.evRecord(), done, "onlyManagementBody");
+      validateTransactions([
+          function() {return hong.mgmtIssueBountyToken(fellow5, 100, {from: fellow4})},
+          function() {}
+        ], done);
+    });
+    
+    it ('does not allow others to call mgmtInvestProject', function(done) {
+      done = assertEventIsFiredByName(hong.evRecord(), done, "onlyManagementBody");
+      validateTransactions([
+          function() {return hong.mgmtInvestProject(fellow5, 100, {from: fellow4})},
+          function() {}
+        ], done);
+    });
+  });
+  
+    /*
    * The basic template for simple tests is as follows:  
    *
    * validateTransaction(
@@ -285,18 +339,33 @@ describe('HONG Contract Suite', function() {
     }
   }
   
+  function assertTrue(exp, done, msg) {
+    if (!exp) {
+      done(new Error("Failed the '" + msg + "' check"));
+      sandbox.stop(done);
+      assert(false, msg); // force an exception
+    }
+  }
+  
   function asNumber(ethNumber) {
     return sandbox.web3.toBigNumber(ethNumber).toNumber();
   }
 
-  function assertEventIsFiredWhenDone(eventType, done) {
+  function assertEventIsFiredByName(eventType, done, eventName) {
+    return assertEventIsFired(eventType, done, function(event) {
+      return event.message == eventName;
+    });
+  }
+
+  function assertEventIsFired(eventType, done, eventFilter) {
     var eventCount = 0;
     eventType.watch(function(err, val) {
       if (err) done(err);
-      else eventCount++;
+      else if (!eventFilter || eventFilter(val.args)) {
+          eventCount++;
+      }
     });
     return function(err) {
-      console.log("Calling done...");
       eventType.stopWatching();
       if (eventCount == 0) {
         done(new Error("Expected event was not logged!"));

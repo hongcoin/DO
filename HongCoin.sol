@@ -230,7 +230,7 @@ contract GovernanceInterface is ErrorHandler {
 
 contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     modifier onlyManagementBody {
-        if(msg.sender == address(managementBodyAddress)) _
+        if(msg.sender != address(managementBodyAddress)) {doThrow("onlyManagementBody");} else {_}
     }
 
     function TokenCreation(
