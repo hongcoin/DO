@@ -90,7 +90,7 @@ contract ManagedAccountInterface is ErrorHandler {
     function payBalanceToOwner() noEther;
     function payPercentageDownstream(uint percent) onlyOwner noEther;
     function payOwnerAmount(uint _amount) onlyOwner noEther;
-    function actualBalance() returns (uint);
+    function actualBalance() constant returns (uint);
 
     event evPayOut(address msg_sender, uint msg_value, address indexed _recipient, uint _amount);
 }
@@ -127,7 +127,7 @@ contract ManagedAccount is ManagedAccountInterface{
     }
 
     // consistent with HONG contract
-    function actualBalance() returns (uint) {
+    function actualBalance() constant returns (uint) {
         return this.balance;
     }
 }
@@ -473,6 +473,10 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return (tier > 4) ? 4 : tier;
     }
 
+    function pricePerTokenAtCurrentTier() constant returns (uint) {
+        return weiPerInitialHONG * divisor() / 100;
+    }
+
     function divisor() constant returns (uint divisor) {
 
         // Quantity divisor model: based on total quantity of coins issued
@@ -516,8 +520,6 @@ contract HONGInterface is ErrorHandler {
     uint public totalInitialBalance;
     uint public annualManagementFee;
     uint public totalRewardToken;
-
-    function () returns (bool success);
 
     function kickoff();
     function freeze();
@@ -564,12 +566,6 @@ contract HONG is HONGInterface, Token, TokenCreation {
         // TEST tokensCreated steps 50 * MILLION
         tokensPerTier = 50 * MILLION;
         weiPerInitialHONG = 10**16;
-    }
-
-    function () returns (bool success) {
-
-        // We do not accept donation here. Any extra amount sent to us will be refunded
-        return createTokenProxy(msg.sender);
     }
 
     function extraBalanceAccountBalance() noEther constant returns (uint) {
