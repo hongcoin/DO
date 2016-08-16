@@ -220,7 +220,7 @@ describe('HONG Contract Suite', function() {
      * Purchase enough tokens to move the contract to the third tier
      */
     it('moves to tier 1', function(done) {
-      purchaseAllTokensInTier(done, fellow5, false);
+      purchaseAllTokensInTier(done, fellow5, false, 0);
     });
 
     /*
@@ -235,7 +235,7 @@ describe('HONG Contract Suite', function() {
      * Purchase enough tokens to move the contract to the third tier
      */
     it('moves to tier 2', function(done) {
-      purchaseAllTokensInTier(done, fellow5, false);
+      purchaseAllTokensInTier(done, fellow5, false, 0);
     });
 
     /*
@@ -249,7 +249,7 @@ describe('HONG Contract Suite', function() {
      * Purchase enough tokens to move the contract to the third tier
      */
     it('moves tier 3', function(done) {
-      purchaseAllTokensInTier(done, fellow2, false);
+      purchaseAllTokensInTier(done, fellow2, false, 0);
     });
 
     /*
@@ -263,7 +263,7 @@ describe('HONG Contract Suite', function() {
      * Purchase enough tokens to move the contract to the third tier
      */
     it('moves to tier 4', function(done) {
-      purchaseAllTokensInTier(done, fellow5, false);
+      purchaseAllTokensInTier(done, fellow5, false, 0);
     });
 
     /*
@@ -277,7 +277,7 @@ describe('HONG Contract Suite', function() {
      * Purchase enough tokens to move the contract to the fourth tier
      */
     it('locks fund when hitting maxTokens', function(done) {
-      purchaseAllTokensInTier(done, fellow3, true);
+      purchaseAllTokensInTier(done, fellow3, true, 100);
     });
   });
 
@@ -354,7 +354,7 @@ describe('HONG Contract Suite', function() {
     );
   }
 
-  function purchaseAllTokensInTier(done, buyer, expectedFundLocked) {
+  function purchaseAllTokensInTier(done, buyer, expectedFundLocked, extraTokens) {
     console.log("Purchasing the rest of the tokens in current tier, currentTier: " + hong.getCurrentTier());
     done = logEventsToConsole(done);
 
@@ -369,12 +369,13 @@ describe('HONG Contract Suite', function() {
     // purchased but not more.
     var currentTier = asNumber(hong.getCurrentTier());
     var expectedTier = Math.min(4, currentTier + 1);
-    var expectedTokensPurchased = tokensAvailable; // one token at the next price will be purchased
+    var expectedTokensPurchased = tokensAvailable + extraTokens; // one token at the next price will be purchased
     var weiToSend = pricePerTokenAtCurrentTier*expectedTokensPurchased + pricePerTokenAtCurrentTier/2;
     var expectedDivisor = 100 + expectedTier;
-    var expectedTokensCreated = tokensPerTier * (currentTier+1);
+    var expectedTokensCreated = tokensPerTier * (currentTier+1) + extraTokens;
     var percentExtra = (currentTier * (currentTier+1))/2;
     var expectTotalTax = onePercentWeiPerInitialHONG.times(percentExtra).times(tokensPerTier);
+    expectTotalTax = expectTotalTax.plus(onePercentWeiPerInitialHONG.times(currentTier).times(extraTokens))
 
     console.log("onePercentWeiPerInitialHONG: " + onePercentWeiPerInitialHONG);
     console.log("percentExtra: " + percentExtra);
