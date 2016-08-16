@@ -496,9 +496,9 @@ describe('HONG Contract Suite', function() {
     };
   }
 
-  function logAddressMessagesToConsole(done, address) {
+  function logAddressMessagesToConsole(done, _address) {
     var filter = sandbox.web3.eth.filter({
-      address: hong.extraBalance()
+      address: _address
     });
     filter.watch(function(err, val) {
       if (err) {
