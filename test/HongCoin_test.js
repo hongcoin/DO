@@ -224,44 +224,6 @@ describe('HONG Contract Suite', function() {
     });
 
     /*
-     * Purchase enough tokens to move the contract to the second tier
-     */
-     /*
-    it('batches when purchase crosses a tier', function(done) {
-      console.log("[batches when purchase crosses a tier]")
-      var buyer = fellow4;
-
-      // make sure we know the state before we start
-      var expectedTotalTokensBefore = 300;
-      assertEqualN(hong.tokensCreated(), expectedTotalTokensBefore, done, "initial tokens created");
-      assertEqualN(hong.taxPaid(buyer), 0, done, "initial taxPaid");
-      assertEqualN(hong.extraBalanceAccountBalance(), 0, done, "initial extraBalance");
-
-      var expectedTokensPurchased = 49999997;
-      var expectedTaxPaid = 29700000000000000;
-      var expectedDivisor = 101;
-      var expectedTier = 1;
-      var expectedTotalTokensAfter = expectedTotalTokensBefore + expectedTokensPurchased;
-      var weiToSend = 500000*eth;
-
-      validateTransactions([
-          function() {
-              return hong.buyTokens({from: buyer, value: weiToSend});
-          },
-          function() {
-            assertEqualN(hong.balanceOf(buyer), expectedTokensPurchased);
-            assertEqualN(hong.getCurrentTier(), expectedTier, done, "tier");
-            assertEqualN(hong.tokensCreated(), expectedTotalTokensAfter, done, "tokens created");
-            assertEqualN(hong.taxPaid(buyer), expectedTaxPaid, done, "taxPaid");
-            assertEqualN(hong.extraBalanceAccountBalance(), expectedTaxPaid, done,"extraBalance");
-            assertEqualN(expectedDivisor, hong.divisor(), done, "divisor");
-          }],
-          done
-      );
-    });
-    */
-
-    /*
      * Testing purchase at tier-1.  Refunding the purchase to avoid changing the state.
      */
     it('check token price @ tier 1', function(done) {
