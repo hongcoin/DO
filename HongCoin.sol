@@ -90,7 +90,7 @@ contract ManagedAccountInterface is ErrorHandler {
     function payBalanceToOwner() noEther;
     function payPercentageDownstream(uint percent) onlyOwner noEther;
     function payOwnerAmount(uint _amount) onlyOwner noEther;
-    function actualBalance() returns (uint);
+    function actualBalance() constant returns (uint);
 
     event evPayOut(address msg_sender, uint msg_value, address indexed _recipient, uint _amount);
 }
@@ -120,14 +120,15 @@ contract ManagedAccount is ManagedAccountInterface{
     }
 
     function payOut(address _recipient, uint _amount) internal {
-        if (!_recipient.send(_amount))
+        // send does not forward enough gas to see that this is a managed account call
+        if (!_recipient.call.value(_amount)())
             doThrow("payOut:sendFailed");
         else
             evPayOut(msg.sender, msg.value, _recipient, _amount);
     }
 
     // consistent with HONG contract
-    function actualBalance() returns (uint) {
+    function actualBalance() constant returns (uint) {
         return this.balance;
     }
 }
@@ -157,7 +158,6 @@ contract TokenCreationInterface {
     event evCreatedToken(address msg_sender, uint msg_value, address indexed to, uint amount);
     event evRefund(address msg_sender, uint msg_value, address indexed to, uint value, bool result);
 }
-
 
 contract GovernanceInterface is ErrorHandler {
 
@@ -254,11 +254,21 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         var weiPerLatestHONG = weiPerInitialHONG * divisor() / 100;
         uint remainingWei = msg.value;
         uint tokensAvailable = tokensAvailableAtCurrentTier();
-
+        if (tokensAvailable == 0) {
+            doThrow("noTokensToSell");
+            return false;
+        }
+        
         // Sell tokens in batches based on the current price.
-        while (tokensAvailable > 0 && remainingWei >= weiPerLatestHONG) {
+        while (remainingWei >= weiPerLatestHONG) {
             uint tokensRequested = remainingWei / weiPerLatestHONG;
             uint tokensToSellInBatch = min(tokensAvailable, tokensRequested);
+            
+            // special case.  Allow the last purchase to go over the max
+            if (tokensAvailable == 0 && tokensCreated == maxTokensToCreate) {
+                tokensToSellInBatch = tokensRequested;
+            }
+            
             uint priceForBatch = tokensToSellInBatch * weiPerLatestHONG;
 
             // track to total wei accepted and total tokens supplied
@@ -275,7 +285,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             remainingWei = msg.value - weiAccepted;
             tokensAvailable = tokensAvailableAtCurrentTier();
         }
-
+        
         // when the caller is paying more than 10**16 wei (0.01 Ether) per token, the extra is basically a tax.
         uint256 totalTaxLevied = weiAccepted - tokensSupplied * weiPerInitialHONG;
         taxPaid[_tokenHolder] += totalTaxLevied;
@@ -287,14 +297,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         if (totalTaxLevied > 0) {
             if (!extraBalance.send(totalTaxLevied))
                 doThrow("extraBalance:sendFail");
-                return;
-        }
-
-        // TODO: might be better to put this into overpayment[_tokenHolder] += remainingWei
-        // and let them call back for it.
-        if (remainingWei > 0) {
-            if (!msg.sender.send(remainingWei))
-                doThrow("refund:sendFail");
                 return;
         }
 
@@ -473,6 +475,10 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return (tier > 4) ? 4 : tier;
     }
 
+    function pricePerTokenAtCurrentTier() constant returns (uint) {
+        return weiPerInitialHONG * divisor() / 100;
+    }
+
     function divisor() constant returns (uint divisor) {
 
         // Quantity divisor model: based on total quantity of coins issued
@@ -516,8 +522,6 @@ contract HONGInterface is ErrorHandler {
     uint public totalInitialBalance;
     uint public annualManagementFee;
     uint public totalRewardToken;
-
-    function () returns (bool success);
 
     function kickoff();
     function freeze();
@@ -565,13 +569,25 @@ contract HONG is HONGInterface, Token, TokenCreation {
         tokensPerTier = 50 * MILLION;
         weiPerInitialHONG = 10**16;
     }
-
+    
     function () returns (bool success) {
-
-        // We do not accept donation here. Any extra amount sent to us will be refunded
-        return createTokenProxy(msg.sender);
+        if (!isFromManagedAccount()) {            
+            // We do not accept donation here. Any extra amount sent to us will be refunded
+            return createTokenProxy(msg.sender);
+        }
+        else {
+            evRecord(msg.sender, msg.value, "log", "Recevied ether from ManagedAccount");
+            return true;
+        }
     }
-
+    
+    function isFromManagedAccount() internal returns (bool) {
+        return msg.sender == address(extraBalance)
+            || msg.sender == address(ReturnAccount)
+            || msg.sender == address(HONGRewardAccount)
+            || msg.sender == address(ManagementFeePoolWallet);
+    }
+    
     function extraBalanceAccountBalance() noEther constant returns (uint) {
         return extraBalance.actualBalance();
     }
