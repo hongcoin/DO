@@ -283,13 +283,12 @@ describe('HONG Contract Suite', function() {
 
   describe("after ICO", function() {
     it('does not allow refunds after fund is locked', function(done) {
+      console.log("[does not allow refunds after fund is locked]");
       var buyer = fellow3;
       var tokensBefore = hong.balanceOf(buyer);
       var hongBalanceBefore = hong.actualBalance();
 
-      done = assertEventIsFired(hong.evRecord(), done, function(event) {
-        return event.message == "notLocked";
-      });
+      done = assertEventIsFiredByName(hong.evRecord(), done, "notLocked");
       done = logEventsToConsole(done);
 
       assertTrue(asNumber(tokensBefore) > 0, done, "buyer has tokens");
@@ -301,10 +300,93 @@ describe('HONG Contract Suite', function() {
           }],
           done);
     });
+    
+    it ('does not allow new token purchase when fund it locked', function(done) {
+      console.log("[does not allow new token purchase when fund it locked]");
+      var buyer = fellow1;
+      var previousBalance = hong.balanceOf(buyer);
+      var previousTokensCreated = hong.tokensCreated();
+      done = assertEventIsFiredByName(hong.evRecord(), done, "notLocked");
+      validateTransactions([
+        function() { return hong.buyTokens({from: buyer, value: 1*eth}) },
+        function() { 
+          assertEqualN(previousBalance, hong.balanceOf(buyer), done, "buyer tokens");
+          assertEqualN(previousTokensCreated, hong.tokensCreated(), done, "tokens created");
+        }], done);
+    });
+    
+    it('allow bounty tokens to be issued by owner', function(done) {
+      console.log("[allow bounty tokens to be issued by owner]");
+      var recipeint = fellow2;
+      var previousBalance = asNumber(hong.balanceOf(recipeint));
+      var previousBountyTokens = asNumber(hong.bountyTokensCreated());
+      var bountyTokensToIssue = 100;
+      done = assertEventIsFired(hong.evMgmtIssueBountyToken(), done);
+      validateTransactions([
+          function() { return hong.mgmtIssueBountyToken(recipeint, bountyTokensToIssue, {from: ownerAddress}); },
+          function() { 
+            assertEqualN(previousBalance + bountyTokensToIssue, hong.balanceOf(recipeint), done, "bounty issued");
+            assertEqualN(previousBountyTokens + bountyTokensToIssue, hong.bountyTokensCreated(), done, "bounty tokens created");
+          }
+        ], done);
+    });
+    
+    it('DOES NOT allow bounty tokens to be issued by non-owner', function(done) {
+      console.log("[DOES NOT allow bounty tokens to be issued by non-owner]");
+      var recipeint = fellow2;
+      var nonOwner = fellow5;
+      var previousBalance = asNumber(hong.balanceOf(recipeint));
+      var previousBountyTokens = asNumber(hong.bountyTokensCreated());
+      var bountyTokensToIssue = 100;
+      
+      done = assertEventIsFiredByName(hong.evRecord(), done, "onlyManagementBody");
+      validateTransactions([
+          function() { return hong.mgmtIssueBountyToken(recipeint, bountyTokensToIssue, {from: nonOwner}); },
+          function() { 
+            assertEqualN(previousBalance, hong.balanceOf(recipeint), done, "bounty not issued");
+            assertEqualN(previousBountyTokens, hong.bountyTokensCreated(), done, "bounty tokens created");
+          }
+        ], done);
+    });
+    
+    it('DOES NOT allow more than maxBountyTokens to be issued', function(done) {
+      console.log("[DOES NOT allow more than maxBountyTokens to be issued]");
+      var recipeint = fellow2;
+      var previousBalance = asNumber(hong.balanceOf(recipeint));
+      var previousBountyTokens = asNumber(hong.bountyTokensCreated());
+      var bountyTokensToIssue = 2000000 - previousBountyTokens + 1; // one too many
+      
+      done = assertEventIsFiredByName(hong.evRecord(), done, "hitMaxBounty");
+      validateTransactions([
+          function() { return hong.mgmtIssueBountyToken(recipeint, bountyTokensToIssue, {from: ownerAddress}); },
+          function() { 
+            assertEqualN(previousBalance, hong.balanceOf(recipeint), done, "bounty not issued");
+            assertEqualN(previousBountyTokens, hong.bountyTokensCreated(), done, "bounty tokens created");
+          }
+        ], done);
+    });
+    
+    it('allows maxBountyTokens to be issued', function(done) {
+      console.log("[allows maxBountyTokens to be issued]");
+      var recipeint = fellow2;
+      var previousBalance = asNumber(hong.balanceOf(recipeint));
+      var previousBountyTokens = asNumber(hong.bountyTokensCreated());
+      var bountyTokensToIssue = 2000000 - previousBountyTokens; // just right
+      
+      done = assertEventIsFired(hong.evMgmtIssueBountyToken(), done);
+      validateTransactions([
+          function() { return hong.mgmtIssueBountyToken(recipeint, bountyTokensToIssue, {from: ownerAddress}); },
+          function() { 
+            assertEqualN(previousBalance + bountyTokensToIssue, hong.balanceOf(recipeint), done, "bounty issued");
+            assertEqualN(previousBountyTokens + bountyTokensToIssue, hong.bountyTokensCreated(), done, "bounty tokens created");
+          }
+        ], done);
+    });
   });
 
   describe("mgmt only", function() {
     it ('does not allow others to call mgmtDistribute', function(done) {
+      console.log('[does not allow others to call mgmtDistribute]');
       done = assertEventIsFiredByName(hong.evRecord(), done, "onlyManagementBody");
       validateTransactions([
           function() {return hong.mgmtDistribute({from: fellow4})},
@@ -313,6 +395,7 @@ describe('HONG Contract Suite', function() {
     });
 
     it ('does not allow others to call mgmtIssueBountyToken', function(done) {
+      console.log('[does not allow others to call mgmtIssueBountyToken]');
       done = assertEventIsFiredByName(hong.evRecord(), done, "onlyManagementBody");
       validateTransactions([
           function() {return hong.mgmtIssueBountyToken(fellow5, 100, {from: fellow4})},
@@ -321,6 +404,7 @@ describe('HONG Contract Suite', function() {
     });
 
     it ('does not allow others to call mgmtInvestProject', function(done) {
+      console.log('[does not allow others to call mgmtInvestProject]');
       done = assertEventIsFiredByName(hong.evRecord(), done, "onlyManagementBody");
       validateTransactions([
           function() {return hong.mgmtInvestProject(fellow5, 100, {from: fellow4})},
