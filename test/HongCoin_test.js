@@ -70,7 +70,7 @@ describe('HONG Contract Suite', function() {
             console.log("Gas used: " + receipt.gasUsed);
             hong = contract;
             console.log("hong: " + hong);
-            console.log("extraBalance: " + contract.extraBalance());
+            console.log("extraBalance: " + contract.extraBalanceWallet());
             if (receipt.gasUsed > maxDeploymentGas) {
                 done(new Error("Gas used to deploy contract exceeds gasLimit!"));
             }
@@ -114,7 +114,7 @@ describe('HONG Contract Suite', function() {
       console.log("[ refund-after-purchase-ok]")
       var buyer = fellow3;
       done = logEventsToConsole(done);
-      done = logAddressMessagesToConsole(done, hong.extraBalance());
+      done = logAddressMessagesToConsole(done, hong.extraBalanceWallet());
       done = assertEventIsFired(hong.evCreatedToken(), done);
       done = assertEventIsFired(hong.evRefund(), done);
       validateTransactions([
@@ -227,7 +227,7 @@ describe('HONG Contract Suite', function() {
      * Testing purchase at tier-1.  Refunding the purchase to avoid changing the state.
      */
     it('check token price @ tier 1', function(done) {
-      done = logAddressMessagesToConsole(done, hong.extraBalance());
+      done = logAddressMessagesToConsole(done, hong.extraBalanceWallet());
       checkPriceFor100Tokens(done, fellow7, 1.01);
     });
 
@@ -412,13 +412,58 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
   });
-
+  
+  describe("kick off voting", function() {
+    it ('does not allow non-token holder to vote kickoff', function(done){
+      console.log('[does not allow non-token holder to voteKickoff]');
+      var fiscalYear = hong.currentFiscalYear()+1;
+      var nonTokenHolder = fellow8;
+      
+      done = assertEventIsFiredByName(hong.evRecord(), done, "onlyTokenHolders");
+      validateTransactions([
+          function() { return hong.kickoff({from: nonTokenHolder})},
+          function() {
+            assertEqualN(0, hong.supportKickoffQuorum(fiscalYear), done, "voted kickoff quorum count");
+          }
+        ], done);
+    });
+    
+    it ('allows token holder to vote kickoff', function(done){
+      console.log('[allows token holder to vote kickoff]');
+      var fiscalYear = hong.currentFiscalYear()+1;
+      var tokenHolder = fellow2;
+      
+      var tokens = hong.balanceOf(tokenHolder);
+      validateTransactions([
+          function() { return hong.kickoff({from: tokenHolder})},
+          function() {
+            assertEqualN(tokens, hong.supportKickoffQuorum(fiscalYear), done, "voted kickoff quorum count");
+          }
+        ], done);
+    });
+    
+    it ('does kickoff when quorum is reached', function(done){
+      console.log('[does kickoff when quorum is reached]');
+      var tokenHolder = fellow5;
+      var previousHongBalance = asNumber(hong.actualBalance());
+      var previousExtraBalance = asNumber(hong.extraBalanceWalletBalance()); 
+      validateTransactions([
+          function() { return hong.kickoff({from: tokenHolder})},
+          function() {
+            assertEqual(true, hong.isInitialKickoffEnabled(), done, "kickoff enabled");
+            assertEqualN(0, hong.extraBalanceWalletBalance(), done, "extra balance");
+            // TODO: Additional assertions needed here
+          }
+        ], done);
+    });
+  });
+  
   function checkPriceFor100Tokens(done, buyer, ethPer100) {
     console.log("[checking token price, expecting " + ethPer100 + "]");
     console.log("Available: " + hong.tokensAvailableAtCurrentTier());
     done = logEventsToConsole(done);
     var previousBalanceOfBuyer = asNumber(hong.balanceOf(buyer));
-    var previousExtraBalance = asNumber(hong.extraBalanceAccountBalance());
+    var previousExtraBalance = asNumber(hong.extraBalanceWalletBalance());
     validateTransactions([
       function() {
         return hong.buyTokens({from: buyer, value: ethPer100*eth});
@@ -431,7 +476,7 @@ describe('HONG Contract Suite', function() {
       },
       function() {
         assertEqualN(hong.balanceOf(buyer), 0, done, "refund all tokens"); // user cannot get a partial refund
-        assertEqualN(previousExtraBalance, asNumber(hong.extraBalanceAccountBalance()), done, "extraBalance");
+        assertEqualN(previousExtraBalance, asNumber(hong.extraBalanceWalletBalance()), done, "extraBalance");
       },
       ],
       done
@@ -478,8 +523,8 @@ describe('HONG Contract Suite', function() {
           assertEqual(expectedFundLocked, hong.isFundLocked(), done, "fund locked");
           assertEqual(expectedFundLocked, hong.isMaxTokensReached(), done, "max tokens reached");
           console.log("expectTotalTax: " + expectTotalTax.toString(10));
-          console.log("extraBalance: " + sandbox.web3.toBigNumber(hong.extraBalanceAccountBalance()).toString(10));
-          assertTrue(expectTotalTax.equals(sandbox.web3.toBigNumber(hong.extraBalanceAccountBalance())), done, "extra balance");
+          console.log("extraBalance: " + sandbox.web3.toBigNumber(hong.extraBalanceWalletBalance()).toString(10));
+          assertTrue(expectTotalTax.equals(sandbox.web3.toBigNumber(hong.extraBalanceWalletBalance())), done, "extra balance");
         }],
         done
     );
