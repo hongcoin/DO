@@ -69,57 +69,30 @@ contract Token is TokenInterface {
 }
 
 
-contract ManagedAccountInterface is ErrorHandler {
-
-    // These are the only two addresses that this account can send to.  Seems safer to avoid an interface that
-    // takes in an arbitrary address as a parameter.
+contract OwnedAccount is ErrorHandler {
     address public owner;
-    address public downstreamAccount;
-
+    
+    event evPayOut(address msg_sender, uint msg_value, address indexed _recipient, uint _amount);
+    
     modifier onlyOwner() {
         if (msg.sender != owner) doThrow("onlyOwner");
         else {_}
     }
-
+    
     modifier noEther() {
         if (msg.value > 0) doThrow("noEther");
         else {_}
     }
-
-    function payBalanceDownstream() onlyOwner noEther;
-    function payBalanceToOwner() noEther;
-    function payPercentageDownstream(uint percent) onlyOwner noEther;
-    function payOwnerAmount(uint _amount) onlyOwner noEther;
-    function actualBalance() constant returns (uint);
-
-    event evPayOut(address msg_sender, uint msg_value, address indexed _recipient, uint _amount);
-}
-
-
-contract ManagedAccount is ManagedAccountInterface{
-
-    function ManagedAccount(address _owner, address _downstreamAccount) {
+    
+    function OwnedAccount(address _owner) {
         owner = _owner;
-        downstreamAccount = _downstreamAccount;
     }
 
-    function payBalanceDownstream() onlyOwner noEther {
-        payOut(downstreamAccount, this.balance);
+    function payOutPercentage(address _recipient, uint _percent) internal onlyOwner noEther {
+        payOutAmount(_recipient, this.balance * (_percent/100));
     }
 
-    function payBalanceToOwner() noEther {
-       payOut(owner, this.balance);
-    }
-
-    function payPercentageDownstream(uint percent) onlyOwner noEther {
-        payOut(downstreamAccount, this.balance * (percent/100));
-    }
-
-    function payOwnerAmount(uint _amount) onlyOwner noEther {
-        payOut(owner, _amount);
-    }
-
-    function payOut(address _recipient, uint _amount) internal {
+    function payOutAmount(address _recipient, uint _amount) internal onlyOwner noEther {
         // send does not forward enough gas to see that this is a managed account call
         if (!_recipient.call.value(_amount)())
             doThrow("payOut:sendFailed");
@@ -133,16 +106,61 @@ contract ManagedAccount is ManagedAccountInterface{
     }
 }
 
-contract ManagedReturnAccount is ManagedAccount {
-    function ManagedReturnAccount(address _owner, address _downstreamAccount) ManagedAccount(_owner, _downstreamAccount) {
-
+contract ReturnWallet is OwnedAccount {
+    address public mgmtBodyWalletAddress;
+    function ReturnWallet(address _mgmtBodyWalletAddress) OwnedAccount(msg.sender) {
+        mgmtBodyWalletAddress = _mgmtBodyWalletAddress;
     }
-
-    function payTokenHolderAmount(address _tokenHolderAddress, uint _amount) onlyOwner noEther {
-        payOut(_tokenHolderAddress, _amount);
+    
+    function payManagementBodyPercent(uint _percent) {
+        payOutPercentage(mgmtBodyWalletAddress, _percent);
+    }
+    
+    function payTokenHolderAmount(address _tokenHolderAddress, uint _amount) {
+        payOutAmount(_tokenHolderAddress, _amount);
     }
 }
 
+contract ExtraBalanceWallet is OwnedAccount {
+    function ExtraBalanceWallet() OwnedAccount(msg.sender) {
+    }
+    
+    function returnBalanceToMainAccount() {
+        payOutAmount(owner, this.balance);
+    }
+    
+    function returnAmountToMainAccount(uint _amount) {
+        payOutAmount(owner, _amount);
+    }
+}
+
+contract RewardWallet is OwnedAccount {
+    address public returnWalletAddress;
+    function RewardWallet(address _returnWalletAddress) OwnedAccount(msg.sender) {
+        returnWalletAddress = _returnWalletAddress;
+    }
+    
+    function payBalanceToReturnWallet() {
+        payOutAmount(returnWalletAddress, this.balance);
+    }
+}
+
+contract ManagementFeeWallet is OwnedAccount {
+    address public mgmtBodyAddress;
+    address public returnWalletAddress;
+    function ManagementFeeWallet(address _mgmtBodyAddress, address _returnWalletAddress) OwnedAccount(msg.sender) {
+        mgmtBodyAddress = _mgmtBodyAddress;
+        returnWalletAddress  = _returnWalletAddress;
+    }
+    
+    function payManagementBodyAmount(uint _amount) {
+        payOutAmount(mgmtBodyAddress, _amount);
+    }
+    
+    function payBalanceToReturnWallet() {
+        payOutAmount(returnWalletAddress, this.balance);
+    }
+}
 
 /*
  * Token Creation contract, similar to other organization,for issuing tokens and initialize
@@ -156,7 +174,7 @@ contract TokenCreationInterface {
     uint public maxTokensToCreate;
     uint public tokensPerTier;
     uint public weiPerInitialHONG;
-    ManagedAccount public extraBalance;
+    ExtraBalanceWallet public extraBalanceWallet;
     mapping (address => uint256) weiGiven;
     mapping (address => uint256) public taxPaid;
 
@@ -215,9 +233,9 @@ contract GovernanceInterface is ErrorHandler {
     bool public isDistributionInProgress;
     bool public isDistributionReady;
 
-    ManagedReturnAccount public ReturnAccount;
-    ManagedAccount public HONGRewardAccount;
-    ManagedAccount public ManagementFeePoolWallet;
+    ReturnWallet public returnWallet;
+    RewardWallet public rewardWallet;
+    ManagementFeeWallet public managementFeeWallet;
 
     // define the governance of this organization and critical functions
     function mgmtIssueBountyToken(address _recipientAddress, uint _amount) returns (bool);
@@ -249,8 +267,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         managementBodyAddress = _managementBodyAddress;
         closingTime = _closingTime;
-        extraBalance = new ManagedAccount(address(this), address(this));
-
     }
 
     function createTokenProxy(address _tokenHolder) notLocked hasEther returns (bool success) {
@@ -305,7 +321,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // External calls
         if (totalTaxLevied > 0) {
-            if (!extraBalance.send(totalTaxLevied))
+            if (!extraBalanceWallet.send(totalTaxLevied))
                 doThrow("extraBalance:sendFail");
                 return;
         }
@@ -345,7 +361,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // 4: external calls
         // Pull taxes paid back into this contract (they would have been paid into the extraBalance account)
-        extraBalance.payOwnerAmount(tmpTaxPaidBySender);
+        extraBalanceWallet.returnAmountToMainAccount(tmpTaxPaidBySender);
 
         // If that works, then do a refund
         if (!msg.sender.send(amountToRefund)) {
@@ -399,23 +415,23 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         isDistributionReady = true;
 
         // (1) HONG main account
-        payoutBalanceToReturnAccount();
-        ManagementFeePoolWallet.payBalanceDownstream();
-        HONGRewardAccount.payBalanceDownstream();
+        payBalanceToReturnWallet();
+        managementFeeWallet.payBalanceToReturnWallet();
+        rewardWallet.payBalanceToReturnWallet();
 
         // transfer 20% of returns to mgmt Wallet
-        if (mgmtPercentage > 0) ReturnAccount.payPercentageDownstream(mgmtPercentage);
+        if (mgmtPercentage > 0) returnWallet.payManagementBodyPercent(mgmtPercentage);
 
 
         // remaining fund: token holder can claim starting from this point
         // the total amount harvested/ to be distributed
-        evMgmtDistributed(msg.sender, msg.value, ReturnAccount.actualBalance(), true);
+        evMgmtDistributed(msg.sender, msg.value, returnWallet.actualBalance(), true);
         isDistributionInProgress = false;
     }
 
-    function payoutBalanceToReturnAccount() internal {
-        if (!ReturnAccount.send(this.balance))
-            doThrow("payoutBalanceToReturnAccount:sendFailed");
+    function payBalanceToReturnWallet() internal {
+        if (!returnWallet.send(this.balance))
+            doThrow("payBalanceToReturnWallet:sendFailed");
             return;
     }
 
@@ -559,15 +575,19 @@ contract HONG is HONGInterface, Token, TokenCreation {
     ) TokenCreation(_managementBodyAddress, _closingTime) {
 
         managementBodyAddress = _managementBodyAddress;
-        ReturnAccount = new ManagedReturnAccount(address(this), managementBodyAddress);
-        HONGRewardAccount = new ManagedAccount(address(this), address(ReturnAccount));
-        ManagementFeePoolWallet = new ManagedAccount(address(this), address(ReturnAccount));
-        if (address(ReturnAccount) == 0)
-            doThrow("RetrunAccount:0");
-        if (address(HONGRewardAccount) == 0)
-            doThrow("HONGRewardAccount:0");
-        if (address(ManagementFeePoolWallet) == 0)
-            doThrow("ManagementFeePoolWallet:0");
+        returnWallet = new ReturnWallet(managementBodyAddress);
+        rewardWallet = new RewardWallet(address(returnWallet));
+        managementFeeWallet = new ManagementFeeWallet(managementBodyAddress, address(returnWallet));
+        extraBalanceWallet = new ExtraBalanceWallet();
+        
+        if (address(extraBalanceWallet) == 0) 
+            doThrow("extraBalanceWallet:0");
+        if (address(returnWallet) == 0)
+            doThrow("returnWallet:0");
+        if (address(rewardWallet) == 0)
+            doThrow("rewardWallet:0");
+        if (address(managementFeeWallet) == 0)
+            doThrow("managementFeeWallet:0");
 
         uint MILLION = 10**6;
         // TEST minTokensToCreate 100 * MILLION
@@ -592,14 +612,14 @@ contract HONG is HONGInterface, Token, TokenCreation {
     }
 
     function isFromManagedAccount() internal returns (bool) {
-        return msg.sender == address(extraBalance)
-            || msg.sender == address(ReturnAccount)
-            || msg.sender == address(HONGRewardAccount)
-            || msg.sender == address(ManagementFeePoolWallet);
+        return msg.sender == address(extraBalanceWallet)
+            || msg.sender == address(returnWallet)
+            || msg.sender == address(rewardWallet)
+            || msg.sender == address(managementFeeWallet);
     }
 
-    function extraBalanceAccountBalance() noEther constant returns (uint) {
-        return extraBalance.actualBalance();
+    function extraBalanceWalletBalance() noEther constant returns (uint) {
+        return extraBalanceWallet.actualBalance();
     }
 
     function buyTokens() returns (bool success) {
@@ -656,13 +676,13 @@ contract HONG is HONGInterface, Token, TokenCreation {
                 isInitialKickoffEnabled = true;
 
                 // transfer fund in extraBalance to main account
-                extraBalance.payBalanceToOwner();
+                extraBalanceWallet.returnBalanceToMainAccount();
 
                 // reserve 8% of whole fund to ManagementFeePoolWallet
-                totalInitialBalance = address(this).balance;
+                totalInitialBalance = actualBalance();
                 uint fundToReserve = totalInitialBalance * 8 / 100;
                 annualManagementFee = fundToReserve / 4;
-                if(!ManagementFeePoolWallet.call.value(fundToReserve)()){
+                if(!managementFeeWallet.send(fundToReserve)){
                     doThrow("kickoff:ManagementFeePoolWalletFail");
                     return;
                 }
@@ -673,7 +693,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
             lastKickoffDate = now;
 
             // transfer 2% annual management fee from reservedWallet to mgmtWallet (external)
-            ManagementFeePoolWallet.payOwnerAmount(annualManagementFee);
+            managementFeeWallet.payManagementBodyAmount(annualManagementFee);
 
             evKickoff(msg.sender, msg.value, _fiscal);
             evIssueManagementFee(msg.sender, msg.value, annualManagementFee, true);
@@ -714,10 +734,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
         // transfer all tokens in ReturnAccount back to Token Holder's account
 
         // Formula:  valueToReturn =  unit price * 0.8 * (tokens owned / total tokens created)
-        uint valueToReturn = ReturnAccount.actualBalance() * 8 / 10 * balances[msg.sender] / (tokensCreated + bountyTokensCreated);
+        uint valueToReturn = returnWallet.actualBalance() * 8 / 10 * balances[msg.sender] / (tokensCreated + bountyTokensCreated);
         returnCollected[msg.sender] = true;
 
-        ReturnAccount.payTokenHolderAmount(msg.sender, valueToReturn);
+        returnWallet.payTokenHolderAmount(msg.sender, valueToReturn);
     }
 
     function mgmtInvestProject(
