@@ -133,6 +133,16 @@ contract ManagedAccount is ManagedAccountInterface{
     }
 }
 
+contract ManagedReturnAccount is ManagedAccount {
+    function ManagedReturnAccount(address _owner, address _downstreamAccount) ManagedAccount(_owner, _downstreamAccount) {
+
+    }
+
+    function payTokenHolderAmount(address _tokenHolderAddress, uint _amount) onlyOwner noEther {
+        payOut(_tokenHolderAddress, _amount);
+    }
+}
+
 
 /*
  * Token Creation contract, similar to other organization,for issuing tokens and initialize
@@ -205,7 +215,7 @@ contract GovernanceInterface is ErrorHandler {
     bool public isDistributionInProgress;
     bool public isDistributionReady;
 
-    ManagedAccount public ReturnAccount;
+    ManagedReturnAccount public ReturnAccount;
     ManagedAccount public HONGRewardAccount;
     ManagedAccount public ManagementFeePoolWallet;
 
@@ -258,17 +268,17 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             doThrow("noTokensToSell");
             return false;
         }
-        
+
         // Sell tokens in batches based on the current price.
         while (remainingWei >= weiPerLatestHONG) {
             uint tokensRequested = remainingWei / weiPerLatestHONG;
             uint tokensToSellInBatch = min(tokensAvailable, tokensRequested);
-            
+
             // special case.  Allow the last purchase to go over the max
             if (tokensAvailable == 0 && tokensCreated == maxTokensToCreate) {
                 tokensToSellInBatch = tokensRequested;
             }
-            
+
             uint priceForBatch = tokensToSellInBatch * weiPerLatestHONG;
 
             // track to total wei accepted and total tokens supplied
@@ -285,7 +295,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             remainingWei = msg.value - weiAccepted;
             tokensAvailable = tokensAvailableAtCurrentTier();
         }
-        
+
         // when the caller is paying more than 10**16 wei (0.01 Ether) per token, the extra is basically a tax.
         uint256 totalTaxLevied = weiAccepted - tokensSupplied * weiPerInitialHONG;
         taxPaid[_tokenHolder] += totalTaxLevied;
@@ -549,7 +559,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
     ) TokenCreation(_managementBodyAddress, _closingTime) {
 
         managementBodyAddress = _managementBodyAddress;
-        ReturnAccount = new ManagedAccount(address(this), managementBodyAddress);
+        ReturnAccount = new ManagedReturnAccount(address(this), managementBodyAddress);
         HONGRewardAccount = new ManagedAccount(address(this), address(ReturnAccount));
         ManagementFeePoolWallet = new ManagedAccount(address(this), address(ReturnAccount));
         if (address(ReturnAccount) == 0)
@@ -569,9 +579,9 @@ contract HONG is HONGInterface, Token, TokenCreation {
         tokensPerTier = 50 * MILLION;
         weiPerInitialHONG = 10**16;
     }
-    
+
     function () returns (bool success) {
-        if (!isFromManagedAccount()) {            
+        if (!isFromManagedAccount()) {
             // We do not accept donation here. Any extra amount sent to us will be refunded
             return createTokenProxy(msg.sender);
         }
@@ -580,14 +590,14 @@ contract HONG is HONGInterface, Token, TokenCreation {
             return true;
         }
     }
-    
+
     function isFromManagedAccount() internal returns (bool) {
         return msg.sender == address(extraBalance)
             || msg.sender == address(ReturnAccount)
             || msg.sender == address(HONGRewardAccount)
             || msg.sender == address(ManagementFeePoolWallet);
     }
-    
+
     function extraBalanceAccountBalance() noEther constant returns (uint) {
         return extraBalance.actualBalance();
     }
@@ -707,9 +717,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         uint valueToReturn = ReturnAccount.actualBalance() * 8 / 10 * balances[msg.sender] / (tokensCreated + bountyTokensCreated);
         returnCollected[msg.sender] = true;
 
-        if(!ReturnAccount.send(valueToReturn)){
-            doThrow("failed:collectReturn");
-        }
+        ReturnAccount.payTokenHolderAmount(msg.sender, valueToReturn);
     }
 
     function mgmtInvestProject(
