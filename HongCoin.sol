@@ -23,7 +23,7 @@ along with the HONG.  If not, see <http://www.gnu.org/licenses/>.
  */
 contract HongConfiguration {
     uint constant MILLION = 10**6;
-    
+
     uint public closingTime;
     uint public weiPerInitialHONG = 10**16;
     uint public maxBountyTokens = 2 * MILLION;
@@ -32,10 +32,10 @@ contract HongConfiguration {
     uint public maxTokensToCreate = 250 * MILLION;
     uint public tokensPerTier = 50 * MILLION;
     uint public lastKickoffDateBuffer = 304 days;
-    
+
     uint public mgmtRewardPercentage = 20;
     uint public mgmtFeePercentage = 8;
-    
+
     uint public harvestQuorumPercent = 50;
     uint public freezeQuorumPercent = 50;
     uint public kickoffQuorumPercent = 25;
@@ -94,19 +94,19 @@ contract Token is TokenInterface {
 
 contract OwnedAccount is ErrorHandler {
     address public owner;
-    
+
     event evPayOut(address msg_sender, uint msg_value, address indexed _recipient, uint _amount);
-    
+
     modifier onlyOwner() {
         if (msg.sender != owner) doThrow("onlyOwner");
         else {_}
     }
-    
+
     modifier noEther() {
         if (msg.value > 0) doThrow("noEther");
         else {_}
     }
-    
+
     function OwnedAccount(address _owner) {
         owner = _owner;
     }
@@ -131,27 +131,27 @@ contract OwnedAccount is ErrorHandler {
 
 contract ReturnWallet is OwnedAccount {
     address public mgmtBodyWalletAddress;
-    
+
     bool public inDistributionMode;
     uint public amountToDistribute;
     uint public totalTokens;
     uint public weiPerToken;
-    
+
     function ReturnWallet(address _mgmtBodyWalletAddress) OwnedAccount(msg.sender) {
         mgmtBodyWalletAddress = _mgmtBodyWalletAddress;
     }
-    
+
     function payManagementBodyPercent(uint _percent) {
         payOutPercentage(mgmtBodyWalletAddress, _percent);
     }
-    
+
     function switchToDistributionMode(uint _totalTokens) onlyOwner {
         inDistributionMode = true;
         amountToDistribute = this.balance;
         weiPerToken = amountToDistribute / totalTokens;
         totalTokens = _totalTokens;
     }
-    
+
     function payTokenHolderBasedOnTokenCount(address _tokenHolderAddress, uint _tokens) onlyOwner {
         payOutAmount(_tokenHolderAddress, weiPerToken * _tokens);
     }
@@ -160,11 +160,11 @@ contract ReturnWallet is OwnedAccount {
 contract ExtraBalanceWallet is OwnedAccount {
     function ExtraBalanceWallet() OwnedAccount(msg.sender) {
     }
-    
+
     function returnBalanceToMainAccount() {
         payOutAmount(owner, this.balance);
     }
-    
+
     function returnAmountToMainAccount(uint _amount) {
         payOutAmount(owner, _amount);
     }
@@ -175,7 +175,7 @@ contract RewardWallet is OwnedAccount {
     function RewardWallet(address _returnWalletAddress) OwnedAccount(msg.sender) {
         returnWalletAddress = _returnWalletAddress;
     }
-    
+
     function payBalanceToReturnWallet() {
         payOutAmount(returnWalletAddress, this.balance);
     }
@@ -188,11 +188,11 @@ contract ManagementFeeWallet is OwnedAccount {
         mgmtBodyAddress = _mgmtBodyAddress;
         returnWalletAddress  = _returnWalletAddress;
     }
-    
+
     function payManagementBodyAmount(uint _amount) {
         payOutAmount(mgmtBodyAddress, _amount);
     }
-    
+
     function payBalanceToReturnWallet() {
         payOutAmount(returnWalletAddress, this.balance);
     }
@@ -205,7 +205,7 @@ contract ManagementFeeWallet is OwnedAccount {
 contract TokenCreationInterface is HongConfiguration {
 
     address public managementBodyAddress;
-    
+
     ExtraBalanceWallet public extraBalanceWallet;
     mapping (address => uint256) weiGiven;
     mapping (address => uint256) public taxPaid;
@@ -225,7 +225,7 @@ contract GovernanceInterface is ErrorHandler, HongConfiguration {
     // This value is automatically set, and CANNOT be reversed.
     bool public isFundLocked;
     bool public isFundReleased;
-    
+
     modifier notLocked() {if (isFundLocked) doThrow("notLocked"); else {_}}
     modifier onlyLocked() {if (!isFundLocked) doThrow("onlyLocked"); else {_}}
     modifier onlyHarvestEnabled() {if (!isHarvestEnabled) doThrow("onlyHarvestEnabled"); else {_}}
@@ -455,7 +455,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // remaining fund: token holder can claim starting from this point
         // the total amount harvested/ to be distributed
-        
+
         evMgmtDistributed(msg.sender, msg.value, returnWallet.actualBalance(), true);
         isDistributionInProgress = false;
     }
@@ -610,8 +610,8 @@ contract HONG is HONGInterface, Token, TokenCreation {
         rewardWallet = new RewardWallet(address(returnWallet));
         managementFeeWallet = new ManagementFeeWallet(managementBodyAddress, address(returnWallet));
         extraBalanceWallet = new ExtraBalanceWallet();
-        
-        if (address(extraBalanceWallet) == 0) 
+
+        if (address(extraBalanceWallet) == 0)
             doThrow("extraBalanceWallet:0");
         if (address(returnWallet) == 0)
             doThrow("returnWallet:0");
@@ -691,7 +691,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         supportKickoffQuorum[_fiscal] -= votedKickoff[_fiscal][msg.sender];
         supportKickoffQuorum[_fiscal] += balances[msg.sender];
         votedKickoff[_fiscal][msg.sender] = balances[msg.sender];
-            
+
         if(supportKickoffQuorum[_fiscal] > (tokensCreated + bountyTokensCreated) * (kickoffQuorumPercent/100)) {
             if(_fiscal == 1){
                 isInitialKickoffEnabled = true;
@@ -783,23 +783,31 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
     function transfer(address _to, uint256 _value) returns (bool success) {
 
-        // Reset kickoff voting for the next fiscal year from this address to false
+        // Update kickoff voting record for the next fiscal year for an address, and the total quorum
         if(currentFiscalYear < 4){
             if(votedKickoff[currentFiscalYear+1][msg.sender] > _value){
                 votedKickoff[currentFiscalYear+1][msg.sender] -= _value;
+                supportKickoffQuorum[currentFiscalYear+1] -= _value;
+            }else{
+                supportKickoffQuorum[currentFiscalYear+1] -= votedKickoff[currentFiscalYear+1][msg.sender];
+                votedKickoff[currentFiscalYear+1][msg.sender] = 0;
             }
         }
 
-        // Reset Freeze and Harvest voting from this address to false
+        // Update Freeze and Harvest voting records for an address, and the total quorum
         if(votedFreeze[msg.sender] > _value){
             votedFreeze[msg.sender] -= _value;
+            supportFreezeQuorum -= _value;
         }else{
+            supportFreezeQuorum -= votedFreeze[msg.sender];
             votedFreeze[msg.sender] = 0;
         }
 
         if(votedHarvest[msg.sender] > _value){
             votedHarvest[msg.sender] -= _value;
+            supportHarvestQuorum -= _value;
         }else{
+            supportHarvestQuorum -= votedHarvest[msg.sender];
             votedHarvest[msg.sender] = 0;
         }
 
