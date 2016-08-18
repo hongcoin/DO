@@ -280,8 +280,6 @@ contract GovernanceInterface is ErrorHandler, HongConfiguration {
     event evMgmtIssueBountyToken(address msg_sender, uint msg_value, address _recipientAddress, uint _amount, bool _success);
     event evMgmtDistributed(address msg_sender, uint msg_value, uint256 _amount, bool _success);
     event evMgmtInvestProject(address msg_sender, uint msg_value, address _projectWallet, uint _amount, bool result);
-
-    // Triggered when the minTokensToCreate is reached
     event evLockFund(address msg_sender, uint msg_value);
 }
 
@@ -434,9 +432,9 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // transfer all balance from the following accounts
         // (1) HONG main account,
-        // (2) ManagementFeePoolWallet,
-        // (3) HONGRewardAccount
-        // to ReturnAccount
+        // (2) managementFeeWallet,
+        // (3) rewardWallet
+        // to returnWallet
 
         // And allocate _mgmtPercentage of the fund to ManagementBody
 
@@ -453,9 +451,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         if (_mgmtPercentage > 0) returnWallet.payManagementBodyPercent(_mgmtPercentage);
         returnWallet.switchToDistributionMode(tokensCreated + bountyTokensCreated);
 
-        // remaining fund: token holder can claim starting from this point
-        // the total amount harvested/ to be distributed
-
+        // Token holder can claim the remaining fund (the total amount harvested/ to be distributed) starting from here
         evMgmtDistributed(msg.sender, msg.value, returnWallet.actualBalance(), true);
         isDistributionInProgress = false;
     }
@@ -600,8 +596,6 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
     function HONG(
         address _managementBodyAddress,
-        // A variable to be set 30 days after contract execution.
-        // There is an extra 30-day period after this date for second round, if it failed to reach for the first deadline.
         uint _closingTime
     ) TokenCreation(_managementBodyAddress, _closingTime) {
 
@@ -623,7 +617,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
     function () returns (bool success) {
         if (!isFromManagedAccount()) {
-            // We do not accept donation here. Any extra amount sent to us will be refunded
+            // We do not accept donation here. Any extra amount sent to us after fund locking process, will be refunded
             return createTokenProxy(msg.sender);
         }
         else {
@@ -777,7 +771,6 @@ contract HONG is HONGInterface, Token, TokenCreation {
             return;
         }
 
-        // Initiate event
         evMgmtInvestProject(msg.sender, msg.value, _projectWallet, _amount, true);
     }
 
