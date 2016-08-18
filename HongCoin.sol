@@ -18,6 +18,29 @@ You should have received a copy of the GNU lesser General Public License
 along with the HONG.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/*
+ * Parent contract that contains all of the configurable parameters of the main contract.
+ */
+contract HongConfiguration {
+    uint constant MILLION = 10**6;
+    
+    uint public closingTime;
+    uint public weiPerInitialHONG = 10**16;
+    uint public maxBountyTokens = 2 * MILLION;
+    uint public closingTimeExtensionPeriod = 30 days;
+    uint public minTokensToCreate = 100 * MILLION;
+    uint public maxTokensToCreate = 250 * MILLION;
+    uint public tokensPerTier = 50 * MILLION;
+    uint public lastKickoffDateBuffer = 304 days;
+    
+    uint public mgmtRewardPercentage = 20;
+    uint public mgmtFeePercentage = 8;
+    
+    uint public harvestQuorumPercent = 50;
+    uint public freezeQuorumPercent = 50;
+    uint public kickoffQuorumPercent = 25;
+}
+
 contract ErrorHandler {
     // uint public errorCount = 0;
     event evRecord(address msg_sender, uint msg_value, string eventType, string message);
@@ -108,6 +131,12 @@ contract OwnedAccount is ErrorHandler {
 
 contract ReturnWallet is OwnedAccount {
     address public mgmtBodyWalletAddress;
+    
+    bool public inDistributionMode;
+    uint public amountToDistribute;
+    uint public totalTokens;
+    uint public weiPerToken;
+    
     function ReturnWallet(address _mgmtBodyWalletAddress) OwnedAccount(msg.sender) {
         mgmtBodyWalletAddress = _mgmtBodyWalletAddress;
     }
@@ -116,8 +145,15 @@ contract ReturnWallet is OwnedAccount {
         payOutPercentage(mgmtBodyWalletAddress, _percent);
     }
     
-    function payTokenHolderAmount(address _tokenHolderAddress, uint _amount) {
-        payOutAmount(_tokenHolderAddress, _amount);
+    function switchToDistributionMode(uint _totalTokens) onlyOwner {
+        inDistributionMode = true;
+        amountToDistribute = this.balance;
+        weiPerToken = amountToDistribute / totalTokens;
+        totalTokens = _totalTokens;
+    }
+    
+    function payTokenHolderBasedOnTokenCount(address _tokenHolderAddress, uint _tokens) onlyOwner {
+        payOutAmount(_tokenHolderAddress, weiPerToken * _tokens);
     }
 }
 
@@ -166,14 +202,10 @@ contract ManagementFeeWallet is OwnedAccount {
  * Token Creation contract, similar to other organization,for issuing tokens and initialize
  * its ether fund.
 */
-contract TokenCreationInterface {
+contract TokenCreationInterface is HongConfiguration {
 
     address public managementBodyAddress;
-    uint public closingTime;
-    uint public minTokensToCreate;
-    uint public maxTokensToCreate;
-    uint public tokensPerTier;
-    uint public weiPerInitialHONG;
+    
     ExtraBalanceWallet public extraBalanceWallet;
     mapping (address => uint256) weiGiven;
     mapping (address => uint256) public taxPaid;
@@ -187,12 +219,13 @@ contract TokenCreationInterface {
     event evRefund(address msg_sender, uint msg_value, address indexed to, uint value, bool result);
 }
 
-contract GovernanceInterface is ErrorHandler {
+contract GovernanceInterface is ErrorHandler, HongConfiguration {
 
     // The variable indicating whether the fund has achieved the inital goal or not.
     // This value is automatically set, and CANNOT be reversed.
     bool public isFundLocked;
     bool public isFundReleased;
+    
     modifier notLocked() {if (isFundLocked) doThrow("notLocked"); else {_}}
     modifier onlyLocked() {if (!isFundLocked) doThrow("onlyLocked"); else {_}}
     modifier onlyHarvestEnabled() {if (!isHarvestEnabled) doThrow("onlyHarvestEnabled"); else {_}}
@@ -200,9 +233,6 @@ contract GovernanceInterface is ErrorHandler {
     modifier onlyDistributionNotReady() {if (isDistributionReady) doThrow("onlyDistributionNotReady"); else {_}}
     modifier onlyDistributionReady() {if (!isDistributionReady) doThrow("onlyDistributionReady"); else {_}}
     modifier onlyCanIssueBountyToken(uint _amount) {
-        // TEST maxBountyTokens 2 * MILLION
-        uint MILLION = 10**6;
-        uint maxBountyTokens = 2 * MILLION;
         if (bountyTokensCreated + _amount > maxBountyTokens){
             doThrow("hitMaxBounty");
         }
@@ -397,10 +427,10 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     }
 
     function mgmtDistribute() noEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotReady {
-        distributeDownstream(20);
+        distributeDownstream(mgmtRewardPercentage);
     }
 
-    function distributeDownstream(uint mgmtPercentage) internal onlyDistributionNotInProgress {
+    function distributeDownstream(uint _mgmtPercentage) internal onlyDistributionNotInProgress {
 
         // transfer all balance from the following accounts
         // (1) HONG main account,
@@ -408,7 +438,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // (3) HONGRewardAccount
         // to ReturnAccount
 
-        // And allocate 20% of the fund to ManagementBody
+        // And allocate _mgmtPercentage of the fund to ManagementBody
 
         // State changes first (even though it feels backwards)
         isDistributionInProgress = true;
@@ -419,12 +449,13 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         managementFeeWallet.payBalanceToReturnWallet();
         rewardWallet.payBalanceToReturnWallet();
 
-        // transfer 20% of returns to mgmt Wallet
-        if (mgmtPercentage > 0) returnWallet.payManagementBodyPercent(mgmtPercentage);
-
+        // transfer _mgmtPercentage of returns to mgmt Wallet
+        if (_mgmtPercentage > 0) returnWallet.payManagementBodyPercent(_mgmtPercentage);
+        returnWallet.switchToDistributionMode(tokensCreated + bountyTokensCreated);
 
         // remaining fund: token holder can claim starting from this point
         // the total amount harvested/ to be distributed
+        
         evMgmtDistributed(msg.sender, msg.value, returnWallet.actualBalance(), true);
         isDistributionInProgress = false;
     }
@@ -461,7 +492,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // if we've reached the 60 day mark, try to lock the fund
         // TEST closingTimeExtensionPeriod = 30 days
-        if (!isFundLocked && !isDaySixtyChecked && (now >= (closingTime + 30 days))) {
+        if (!isFundLocked && !isDaySixtyChecked && (now >= (closingTime + closingTimeExtensionPeriod))) {
             if (isMinTokensReached()) {
                 // Case C
                 isFundLocked = true;
@@ -518,7 +549,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 }
 
 
-contract HONGInterface is ErrorHandler {
+contract HONGInterface is ErrorHandler, HongConfiguration {
 
     // we do not have grace period. Once the goal is reached, the fund is secured
 
@@ -588,16 +619,6 @@ contract HONG is HONGInterface, Token, TokenCreation {
             doThrow("rewardWallet:0");
         if (address(managementFeeWallet) == 0)
             doThrow("managementFeeWallet:0");
-
-        uint MILLION = 10**6;
-        // TEST minTokensToCreate 100 * MILLION
-        // TEST maxTokensToCreate 250 * MILLION
-        minTokensToCreate = 100 * MILLION;
-        maxTokensToCreate = 250 * MILLION;
-
-        // TEST tokensCreated steps 50 * MILLION
-        tokensPerTier = 50 * MILLION;
-        weiPerInitialHONG = 10**16;
     }
 
     function () returns (bool success) {
@@ -653,7 +674,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
             }
 
             // TEST lastKickoffDateBuffer = 304 days
-            if(lastKickoffDate + 304 days < now){ // 2 months from the end of the fiscal year
+            if(lastKickoffDate + lastKickoffDateBuffer < now){ // 2 months from the end of the fiscal year
                 // accept voting
             }else{
                 // we do not accept early kickoff
@@ -670,17 +691,17 @@ contract HONG is HONGInterface, Token, TokenCreation {
         supportKickoffQuorum[_fiscal] -= votedKickoff[_fiscal][msg.sender];
         supportKickoffQuorum[_fiscal] += balances[msg.sender];
         votedKickoff[_fiscal][msg.sender] = balances[msg.sender];
-
-        if(supportKickoffQuorum[_fiscal] * 4 > (tokensCreated + bountyTokensCreated)){ // 25%
+            
+        if(supportKickoffQuorum[_fiscal] > (tokensCreated + bountyTokensCreated) * (kickoffQuorumPercent/100)) {
             if(_fiscal == 1){
                 isInitialKickoffEnabled = true;
 
                 // transfer fund in extraBalance to main account
                 extraBalanceWallet.returnBalanceToMainAccount();
 
-                // reserve 8% of whole fund to ManagementFeePoolWallet
+                // reserve mgmtFeePercentage of whole fund to ManagementFeePoolWallet
                 totalInitialBalance = actualBalance();
-                uint fundToReserve = totalInitialBalance * 8 / 100;
+                uint fundToReserve = totalInitialBalance * (mgmtFeePercentage / 100);
                 annualManagementFee = fundToReserve / 4;
                 if(!managementFeeWallet.send(fundToReserve)){
                     doThrow("kickoff:ManagementFeePoolWalletFail");
@@ -692,7 +713,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
             currentFiscalYear = _fiscal;
             lastKickoffDate = now;
 
-            // transfer 2% annual management fee from reservedWallet to mgmtWallet (external)
+            // transfer annual management fee from reservedWallet to mgmtWallet (external)
             managementFeeWallet.payManagementBodyAmount(annualManagementFee);
 
             evKickoff(msg.sender, msg.value, _fiscal);
@@ -706,7 +727,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         supportFreezeQuorum += balances[msg.sender];
         votedFreeze[msg.sender] = balances[msg.sender];
 
-        if(supportFreezeQuorum * 2 > (tokensCreated + bountyTokensCreated)){ // 50%
+        if(supportFreezeQuorum > (tokensCreated + bountyTokensCreated) * (freezeQuorumPercent/100)){
             isFreezeEnabled = true;
             distributeDownstream(0);
             evFreeze(msg.sender, msg.value);
@@ -724,20 +745,15 @@ contract HONG is HONGInterface, Token, TokenCreation {
         supportHarvestQuorum += balances[msg.sender];
         votedHarvest[msg.sender] = balances[msg.sender];
 
-        if(supportHarvestQuorum * 2 > (tokensCreated + bountyTokensCreated)){ // 50%
+        if(supportHarvestQuorum > (tokensCreated + bountyTokensCreated) * (harvestQuorumPercent/100)) {
             isHarvestEnabled = true;
             evHarvest(msg.sender, msg.value);
         }
     }
 
     function collectReturn() onlyTokenHolders noEther onlyDistributionReady onlyCollectOnce {
-        // transfer all tokens in ReturnAccount back to Token Holder's account
-
-        // Formula:  valueToReturn =  unit price * 0.8 * (tokens owned / total tokens created)
-        uint valueToReturn = returnWallet.actualBalance() * 8 / 10 * balances[msg.sender] / (tokensCreated + bountyTokensCreated);
         returnCollected[msg.sender] = true;
-
-        returnWallet.payTokenHolderAmount(msg.sender, valueToReturn);
+        returnWallet.payTokenHolderBasedOnTokenCount(msg.sender, balances[msg.sender]);
     }
 
     function mgmtInvestProject(
