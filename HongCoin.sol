@@ -574,7 +574,6 @@ contract HONGInterface is ErrorHandler, HongConfiguration {
 
     uint public totalInitialBalance;
     uint public annualManagementFee;
-    uint public totalRewardToken;
 
     function kickoff();
     function freeze();
@@ -636,7 +635,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
     function extraBalanceWalletBalance() noEther constant returns (uint) {
         return extraBalanceWallet.actualBalance();
     }
-    
+
     function managementFeeWalletBalance() noEther constant returns (uint) {
         return managementFeeWallet.actualBalance();
     }
@@ -689,8 +688,8 @@ contract HONG is HONGInterface, Token, TokenCreation {
         supportKickoffQuorum[_fiscal] -= votedKickoff[_fiscal][msg.sender];
         supportKickoffQuorum[_fiscal] += balances[msg.sender];
         votedKickoff[_fiscal][msg.sender] = balances[msg.sender];
-            
-                
+
+
         uint threshold = (kickoffQuorumPercent*(tokensCreated + bountyTokensCreated)) / 100;
         if(supportKickoffQuorum[_fiscal] > threshold) {
             if(_fiscal == 1){
@@ -726,7 +725,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         supportFreezeQuorum -= votedFreeze[msg.sender];
         supportFreezeQuorum += balances[msg.sender];
         votedFreeze[msg.sender] = balances[msg.sender];
- 
+
         uint threshold = ((tokensCreated + bountyTokensCreated) * freezeQuorumPercent) / 100;
         if(supportFreezeQuorum > threshold){
             isFreezeEnabled = true;
