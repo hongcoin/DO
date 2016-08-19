@@ -213,7 +213,14 @@ describe('HONG Contract Suite', function() {
      * Testing purchase at tier-1.  Refunding the purchase to avoid changing the state.
      */
     it('check token price @ tier 0', function(done) {
-      checkPriceFor100Tokens(done, fellow7, 1);
+      checkPriceForTokens(done, fellow7, 1, 100);
+    });
+    
+    /*
+     * Test "round down" feature (not issuing any tokens for extra ether)
+     */
+    it('check round-down feature @ tier 0', function(done) {
+      checkPriceForTokens(done, fellow7, 1.1111, 111);
     });
 
     /*
@@ -228,7 +235,7 @@ describe('HONG Contract Suite', function() {
      */
     it('check token price @ tier 1', function(done) {
       done = logAddressMessagesToConsole(done, hong.extraBalanceWallet());
-      checkPriceFor100Tokens(done, fellow7, 1.01);
+      checkPriceForTokens(done, fellow7, 1.01, 100);
     });
 
     /*
@@ -242,7 +249,7 @@ describe('HONG Contract Suite', function() {
      * Testing purchase at tier-1.  Refunding the purchase to avoid changing the state.
      */
     it('check token price @ tier 2', function(done) {
-      checkPriceFor100Tokens(done, fellow7, 1.02);
+      checkPriceForTokens(done, fellow7, 1.02, 100);
     });
 
     /*
@@ -256,7 +263,7 @@ describe('HONG Contract Suite', function() {
      * Testing purchase at tier-1.  Refunding the purchase to avoid changing the state.
      */
     it('check price @ tier 3', function(done) {
-      checkPriceFor100Tokens(done, fellow7, 1.03);
+      checkPriceForTokens(done, fellow7, 1.03, 100);
     });
 
     /*
@@ -270,7 +277,7 @@ describe('HONG Contract Suite', function() {
      * Testing purchase at tier-1.  Refunding the purchase to avoid changing the state.
      */
     it('check token price @ tier 4', function(done) {
-      checkPriceFor100Tokens(done, fellow7, 1.04);
+      checkPriceForTokens(done, fellow7, 1.04, 100);
     });
 
     /*
@@ -312,6 +319,7 @@ describe('HONG Contract Suite', function() {
         function() { 
           assertEqualN(previousBalance, hong.balanceOf(buyer), done, "buyer tokens");
           assertEqualN(previousTokensCreated, hong.tokensCreated(), done, "tokens created");
+          // TODO: The contract should not accept the ether, but it will until doThrow actaully throws
         }], done);
     });
     
@@ -383,7 +391,7 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
   });
-
+  
   describe("mgmt only", function() {
     it ('does not allow others to call mgmtDistribute', function(done) {
       console.log('[does not allow others to call mgmtDistribute]');
@@ -414,7 +422,7 @@ describe('HONG Contract Suite', function() {
   });
   
   describe("kick off voting", function() {
-    it ('does not allow non-token holder to vote kickoff', function(done){
+    it ('does not allow non-token holder to vote kickoff', function(done) {
       console.log('[does not allow non-token holder to voteKickoff]');
       var fiscalYear = hong.currentFiscalYear()+1;
       var nonTokenHolder = fellow8;
@@ -428,16 +436,18 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
     
-    it ('allows token holder to vote kickoff', function(done){
+    it ('allows token holder to vote kickoff', function(done) {
       console.log('[allows token holder to vote kickoff]');
       var fiscalYear = hong.currentFiscalYear()+1;
       var tokenHolder = fellow2;
       
       var tokens = hong.balanceOf(tokenHolder);
+      done = logEventsToConsole(done);
       validateTransactions([
           function() { return hong.kickoff({from: tokenHolder})},
           function() {
             assertEqualN(tokens, hong.supportKickoffQuorum(fiscalYear), done, "voted kickoff quorum count");
+            assertEqual(false, hong.isInitialKickoffEnabled(), done, "kickoff enabled");
           }
         ], done);
     });
@@ -446,30 +456,36 @@ describe('HONG Contract Suite', function() {
       console.log('[does kickoff when quorum is reached]');
       var tokenHolder = fellow5;
       var previousHongBalance = asNumber(hong.actualBalance());
-      var previousExtraBalance = asNumber(hong.extraBalanceWalletBalance()); 
+      var previousExtraBalance = asNumber(hong.extraBalanceWalletBalance());
+      var mgmtFeePercentage = asNumber(hong.mgmtFeePercentage());
+      var yearlyPercentage = mgmtFeePercentage / 4;
+      var expectedMgmtFee = ((mgmtFeePercentage - yearlyPercentage) * (previousExtraBalance + previousHongBalance))/100;
+      var expectedManagementBodyPayment = previousExtraBalance + previousHongBalance - expectedMgmtFee;
+      
+      done = logEventsToConsole(done);
       validateTransactions([
           function() { return hong.kickoff({from: tokenHolder})},
           function() {
             assertEqual(true, hong.isInitialKickoffEnabled(), done, "kickoff enabled");
             assertEqualN(0, hong.extraBalanceWalletBalance(), done, "extra balance");
-            // TODO: Additional assertions needed here
+            assertEqualN(expectedMgmtFee, hong.managementFeeWalletBalance(), done, "mgmt fee");
+            // TODO: Assert that mgmtBody received expectedManagementBodyPayment
           }
         ], done);
     });
   });
   
-  function checkPriceFor100Tokens(done, buyer, ethPer100) {
-    console.log("[checking token price, expecting " + ethPer100 + "]");
-    console.log("Available: " + hong.tokensAvailableAtCurrentTier());
+  function checkPriceForTokens(done, buyer, weiToSend, expectedTokens) {
+    console.log("[checking token price, expecting " + weiToSend + " for " + expectedTokens + " tokens]");
     done = logEventsToConsole(done);
     var previousBalanceOfBuyer = asNumber(hong.balanceOf(buyer));
     var previousExtraBalance = asNumber(hong.extraBalanceWalletBalance());
     validateTransactions([
       function() {
-        return hong.buyTokens({from: buyer, value: ethPer100*eth});
+        return hong.buyTokens({from: buyer, value: weiToSend*eth});
       },
       function() {
-        assertEqualN(hong.balanceOf(buyer), previousBalanceOfBuyer + 100, done, "buyer tokens");
+        assertEqualN(hong.balanceOf(buyer), previousBalanceOfBuyer + expectedTokens, done, "buyer tokens");
       },
       function() {
         return hong.refund({from: buyer});
