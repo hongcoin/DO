@@ -636,6 +636,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
     function extraBalanceWalletBalance() noEther constant returns (uint) {
         return extraBalanceWallet.actualBalance();
     }
+    
+    function managementFeeWalletBalance() noEther constant returns (uint) {
+        return managementFeeWallet.actualBalance();
+    }
 
     function buyTokens() returns (bool success) {
         return createTokenProxy(msg.sender);
@@ -685,8 +689,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
         supportKickoffQuorum[_fiscal] -= votedKickoff[_fiscal][msg.sender];
         supportKickoffQuorum[_fiscal] += balances[msg.sender];
         votedKickoff[_fiscal][msg.sender] = balances[msg.sender];
-
-        if(supportKickoffQuorum[_fiscal] > (tokensCreated + bountyTokensCreated) * (kickoffQuorumPercent/100)) {
+            
+                
+        uint threshold = (kickoffQuorumPercent*(tokensCreated + bountyTokensCreated)) / 100;
+        if(supportKickoffQuorum[_fiscal] > threshold) {
             if(_fiscal == 1){
                 isInitialKickoffEnabled = true;
 
@@ -695,7 +701,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
                 // reserve mgmtFeePercentage of whole fund to ManagementFeePoolWallet
                 totalInitialBalance = actualBalance();
-                uint fundToReserve = totalInitialBalance * (mgmtFeePercentage / 100);
+                uint fundToReserve = (totalInitialBalance * mgmtFeePercentage) / 100;
                 annualManagementFee = fundToReserve / 4;
                 if(!managementFeeWallet.send(fundToReserve)){
                     doThrow("kickoff:ManagementFeePoolWalletFail");
@@ -720,8 +726,9 @@ contract HONG is HONGInterface, Token, TokenCreation {
         supportFreezeQuorum -= votedFreeze[msg.sender];
         supportFreezeQuorum += balances[msg.sender];
         votedFreeze[msg.sender] = balances[msg.sender];
-
-        if(supportFreezeQuorum > (tokensCreated + bountyTokensCreated) * (freezeQuorumPercent/100)){
+ 
+        uint threshold = ((tokensCreated + bountyTokensCreated) * freezeQuorumPercent) / 100;
+        if(supportFreezeQuorum > threshold){
             isFreezeEnabled = true;
             distributeDownstream(0);
             evFreeze(msg.sender, msg.value);
@@ -739,7 +746,8 @@ contract HONG is HONGInterface, Token, TokenCreation {
         supportHarvestQuorum += balances[msg.sender];
         votedHarvest[msg.sender] = balances[msg.sender];
 
-        if(supportHarvestQuorum > (tokensCreated + bountyTokensCreated) * (harvestQuorumPercent/100)) {
+        uint threshold = ((tokensCreated + bountyTokensCreated) * harvestQuorumPercent) / 100;
+        if(supportHarvestQuorum > threshold) {
             isHarvestEnabled = true;
             evHarvest(msg.sender, msg.value);
         }
