@@ -44,7 +44,7 @@ contract HongConfiguration {
 contract ErrorHandler {
     // uint public errorCount = 0;
     event evRecord(address msg_sender, uint msg_value, string eventType, string message);
-    function doThrow(string message) {
+    function doThrow(string message) internal {
         // errorCount++;
         evRecord(msg.sender, msg.value, "Error", message);
         // throw;
@@ -57,7 +57,7 @@ contract TokenInterface is ErrorHandler {
     uint256 public tokensCreated;
 
     function balanceOf(address _owner) constant returns (uint256 balance);
-    function transfer(address _to, uint256 _amount) returns (bool success);
+    function transferMyTokens(address _to, uint256 _amount) returns (bool success);
 
     event evTransfer(address msg_sender, uint msg_value, address indexed _from, address indexed _to, uint256 _amount);
 
@@ -77,7 +77,7 @@ contract Token is TokenInterface {
         return balances[_owner];
     }
 
-    function transfer(address _to, uint256 _amount) noEther returns (bool success) {
+    function transferMyTokens(address _to, uint256 _amount) noEther returns (bool success) {
         if (_amount <= 0) return false;
         if (balances[msg.sender] < _amount) return false;
         if (balances[_to] + _amount < balances[_to]) return false;
@@ -217,8 +217,8 @@ contract TokenCreationInterface is HongConfiguration {
     mapping (address => uint256) weiGiven;
     mapping (address => uint256) public taxPaid;
 
-    function createTokenProxy(address _tokenHolder) returns (bool success);
-    function refund();
+    function createTokenProxy(address _tokenHolder) internal returns (bool success);
+    function refundMyIcoInvestment();
     function divisor() constant returns (uint divisor);
 
     event evMinTokensReached(address msg_sender, uint msg_value, uint value);
@@ -304,7 +304,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         closingTime = _closingTime;
     }
 
-    function createTokenProxy(address _tokenHolder) notLocked hasEther returns (bool success) {
+    function createTokenProxy(address _tokenHolder) internal notLocked hasEther returns (bool success) {
 
         // Business logic (but no state changes)
         // setup transaction details
@@ -368,7 +368,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         return true;
     }
 
-    function refund() noEther notLocked onlyTokenHolders {
+    function refundMyIcoInvestment() noEther notLocked onlyTokenHolders {
         // 1: Preconditions
         if (weiGiven[msg.sender] == 0) {
             doThrow("noWeiGiven");
@@ -584,12 +584,12 @@ contract HONGInterface is ErrorHandler, HongConfiguration {
     uint public totalInitialBalance;
     uint public annualManagementFee;
 
-    function kickoff();
-    function freeze();
-    function unFreeze();
-    function harvest();
+    function voteToKickoffFund();
+    function voteToFreezeFund();
+    function voteToUnfreezeFund();
+    function voteToHarvestFund();
 
-    function collectReturn();
+    function collectMyReturn();
 
     // Trigger the following events when the voting result is available
     event evKickoff(address msg_sender, uint msg_value, uint _fiscal);
@@ -644,7 +644,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
     /*
      * Voting for some critical steps, on blockchain
      */
-    function kickoff() onlyTokenHolders noEther onlyLocked {
+    function voteToKickoffFund() onlyTokenHolders noEther onlyLocked {
         // this is the only valid fiscal year parameter, so there's no point in letting the caller pass it in.
         // Best case is they get it wrong and we throw, worst case is the get it wrong and there's some exploit
         uint _fiscal = currentFiscalYear + 1;
@@ -717,7 +717,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         }
     }
 
-    function freeze() onlyTokenHolders noEther onlyLocked notFinalFiscalYear onlyDistributionNotInProgress {
+    function voteToFreezeFund() onlyTokenHolders noEther onlyLocked notFinalFiscalYear onlyDistributionNotInProgress {
 
         supportFreezeQuorum -= votedFreeze[msg.sender];
         supportFreezeQuorum += balances[msg.sender];
@@ -731,12 +731,12 @@ contract HONG is HONGInterface, Token, TokenCreation {
         }
     }
 
-    function unFreeze() onlyTokenHolders onlyNotFrozen noEther {
+    function voteToUnfreezeFund() onlyTokenHolders onlyNotFrozen noEther {
         supportFreezeQuorum -= votedFreeze[msg.sender];
         votedFreeze[msg.sender] = 0;
     }
 
-    function harvest() onlyTokenHolders noEther onlyLocked onlyFinalFiscalYear onlyVoteHarvestOnce {
+    function voteToHarvestFund() onlyTokenHolders noEther onlyLocked onlyFinalFiscalYear onlyVoteHarvestOnce {
 
         supportHarvestQuorum -= votedHarvest[msg.sender];
         supportHarvestQuorum += balances[msg.sender];
@@ -749,7 +749,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         }
     }
 
-    function collectReturn() onlyTokenHolders noEther onlyDistributionReady onlyCollectOnce {
+    function collectMyReturn() onlyTokenHolders noEther onlyDistributionReady onlyCollectOnce {
         returnCollected[msg.sender] = true;
         returnWallet.payTokenHolderBasedOnTokenCount(msg.sender, balances[msg.sender]);
     }
@@ -778,7 +778,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         evMgmtInvestProject(msg.sender, msg.value, _projectWallet, _amount, true);
     }
 
-    function transfer(address _to, uint256 _value) returns (bool success) {
+    function transferMyTokens(address _to, uint256 _value) returns (bool success) {
 
         // Update kickoff voting record for the next fiscal year for an address, and the total quorum
         if(currentFiscalYear < 4){
@@ -808,7 +808,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
             votedHarvest[msg.sender] = 0;
         }
 
-        if (isFundLocked && super.transfer(_to, _value)) {
+        if (isFundLocked && super.transferMyTokens(_to, _value)) {
             return true;
         } else {
             if(!isFundLocked){

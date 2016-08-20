@@ -105,7 +105,7 @@ describe('HONG Contract Suite', function() {
 
       assertEqualN(0, hong.balanceOf(fellow3), done, "buyer has no tokens");
       validateTransactions([
-          function() { return hong.refund({from: fellow3}) },
+          function() { return hong.refundMyIcoInvestment({from: fellow3}) },
           function() {} ],
           done);
     });
@@ -130,7 +130,7 @@ describe('HONG Contract Suite', function() {
           },
           function() {
             console.log("Getting a refund...");
-            return hong.refund({from: buyer});
+            return hong.refundMyIcoInvestment({from: buyer});
           },
           function() {
             console.log("Validating refund...");
@@ -299,7 +299,7 @@ describe('HONG Contract Suite', function() {
 
       assertTrue(asNumber(tokensBefore) > 0, done, "buyer has tokens");
       validateTransactions([
-          function() { return hong.refund({from: buyer}) },
+          function() { return hong.refundMyIcoInvestment({from: buyer}) },
           function() {
             assertEqualN(tokensBefore, hong.balanceOf(buyer), done, "tokens unchanged");
             assertEqualN(hongBalanceBefore, hong.actualBalance(), done, "hong balance");
@@ -430,7 +430,7 @@ describe('HONG Contract Suite', function() {
       
       done = assertEventIsFiredByName(hong.evRecord(), done, "onlyTokenHolders");
       validateTransactions([
-          function() { return hong.kickoff({from: nonTokenHolder})},
+          function() { return hong.voteToKickoffFund({from: nonTokenHolder})},
           function() {
             assertEqualN(0, hong.supportKickoffQuorum(fiscalYear), done, "voted kickoff quorum count");
           }
@@ -445,7 +445,7 @@ describe('HONG Contract Suite', function() {
       var tokens = hong.balanceOf(tokenHolder);
       done = logEventsToConsole(done);
       validateTransactions([
-          function() { return hong.kickoff({from: tokenHolder})},
+          function() { return hong.voteToKickoffFund({from: tokenHolder})},
           function() {
             assertEqualN(tokens, hong.supportKickoffQuorum(fiscalYear), done, "voted kickoff quorum count");
             assertEqual(false, hong.isInitialKickoffEnabled(), done, "kickoff enabled");
@@ -471,7 +471,7 @@ describe('HONG Contract Suite', function() {
       done = logAddressMessagesToConsole(done, hong.managementFeeWallet());
       validateTransactions([
           function() { 
-            return hong.kickoff({from: tokenHolder});
+            return hong.voteToKickoffFund({from: tokenHolder});
           },
           function() {
             assertEqual(true, hong.isInitialKickoffEnabled(), done, "kickoff enabled");
@@ -504,7 +504,7 @@ describe('HONG Contract Suite', function() {
         assertEqualN(hong.balanceOf(buyer), previousBalanceOfBuyer + expectedTokens, done, "buyer tokens");
       },
       function() {
-        return hong.refund({from: buyer});
+        return hong.refundMyIcoInvestment({from: buyer});
       },
       function() {
         assertEqualN(hong.balanceOf(buyer), 0, done, "refund all tokens"); // user cannot get a partial refund
