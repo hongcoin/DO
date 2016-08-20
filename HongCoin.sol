@@ -158,7 +158,9 @@ contract ReturnWallet is OwnedAccount {
 }
 
 contract ExtraBalanceWallet is OwnedAccount {
-    function ExtraBalanceWallet() OwnedAccount(msg.sender) {
+    address returnWalletAddress;
+    function ExtraBalanceWallet(address _returnWalletAddress) OwnedAccount(msg.sender) {
+        returnWalletAddress = _returnWalletAddress;
     }
 
     function returnBalanceToMainAccount() {
@@ -168,6 +170,11 @@ contract ExtraBalanceWallet is OwnedAccount {
     function returnAmountToMainAccount(uint _amount) {
         payOutAmount(owner, _amount);
     }
+    
+    function payBalanceToReturnWallet() {
+        payOutAmount(returnWalletAddress, this.balance);
+    }
+
 }
 
 contract RewardWallet is OwnedAccount {
@@ -434,6 +441,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         // (1) HONG main account,
         // (2) managementFeeWallet,
         // (3) rewardWallet
+        // (4) extraBalanceWallet
         // to returnWallet
 
         // And allocate _mgmtPercentage of the fund to ManagementBody
@@ -446,6 +454,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         payBalanceToReturnWallet();
         managementFeeWallet.payBalanceToReturnWallet();
         rewardWallet.payBalanceToReturnWallet();
+        extraBalanceWallet.payBalanceToReturnWallet();
 
         // transfer _mgmtPercentage of returns to mgmt Wallet
         if (_mgmtPercentage > 0) returnWallet.payManagementBodyPercent(_mgmtPercentage);
@@ -602,7 +611,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         returnWallet = new ReturnWallet(managementBodyAddress);
         rewardWallet = new RewardWallet(address(returnWallet));
         managementFeeWallet = new ManagementFeeWallet(managementBodyAddress, address(returnWallet));
-        extraBalanceWallet = new ExtraBalanceWallet();
+        extraBalanceWallet = new ExtraBalanceWallet(address(returnWallet));
 
         if (address(extraBalanceWallet) == 0)
             doThrow("extraBalanceWallet:0");
@@ -630,18 +639,6 @@ contract HONG is HONGInterface, Token, TokenCreation {
             || msg.sender == address(returnWallet)
             || msg.sender == address(rewardWallet)
             || msg.sender == address(managementFeeWallet);
-    }
-
-    function extraBalanceWalletBalance() noEther constant returns (uint) {
-        return extraBalanceWallet.actualBalance();
-    }
-
-    function managementFeeWalletBalance() noEther constant returns (uint) {
-        return managementFeeWallet.actualBalance();
-    }
-
-    function buyTokens() returns (bool success) {
-        return createTokenProxy(msg.sender);
     }
 
     /*
