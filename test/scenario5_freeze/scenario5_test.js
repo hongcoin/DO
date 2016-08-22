@@ -12,7 +12,6 @@ var nothingToAssert = function(){};
 var scenario = "Scenario 5: Freezing the fund";
 var ethToWei = function(eth) { return sandbox.web3.toWei(eth, "ether");};
 
-
 describe(scenario, function() {
   console.log(scenario);
   this.timeout(60000);
@@ -69,6 +68,7 @@ describe(scenario, function() {
   });
   
   it('freezes the fund when quorum is reached', function(done) {
+    console.log(" [freezes the fund when quorum is reached]");
     var tokens1 = t.asNumber(t.hong.balanceOf(users.fellow1));
     var tokens2 = t.asNumber(t.hong.balanceOf(users.fellow2));
     var tokens3 = t.asNumber(t.hong.balanceOf(users.fellow3));
@@ -148,7 +148,41 @@ describe(scenario, function() {
       ], done);
   });
   
-  // TODO: collectReturn
+  it('no more tokens will be sold once the fund is frozen', function(done) {
+    console.log(' [no more tokens will be sold once the fund is released]');
+    var buyer = users.fellow7;
+    done = t.logEventsToConsole(done);
+    done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "notLocked");
+    t.validateTransactions([
+      function() { return t.buyTokens(buyer, 2*eth); },
+      function() {
+        t.assertEqualN(0, t.hong.balanceOf(buyer), done, "token count");
+      }
+      ], done);
+  });
+  
+  it('allows users to collect their return after freezing the fund', function(done) {
+    console.log("[allows users to collect their return after freezing the fund]");
+    done = t.logEventsToConsole(done);
+    
+    var fellow1Shares = t.asBigNumber(t.hong.balanceOf(users.fellow1));
+    var tokensCreated = t.asBigNumber(t.hong.tokensCreated());
+    var bountyTokens = t.asBigNumber(t.hong.bountyTokensCreated());
+    
+    var returnAccountBalance = t.asBigNumber(t.getWalletBalance(t.hong.returnWallet()));
+    var expectedWeiPerToken = returnAccountBalance.dividedBy(tokensCreated.plus(bountyTokens)).floor();
+    var fellow1Balance = t.asBigNumber(t.getWalletBalance(users.fellow1));
+    var expectedReturn = fellow1Shares.times(expectedWeiPerToken);
+    var expectedBalance = fellow1Balance.plus(expectedReturn);
+    
+    t.validateTransactions([
+        function() { return t.hong.collectMyReturn({from: users.fellow1 }); },
+        function() {
+          var newBalance = t.asBigNumber(t.getWalletBalance(users.fellow1));
+          t.assertEqualB(expectedBalance, newBalance, done, "fellow1 balance");
+        }
+      ], done);
+  });
   
   after(function(done) {
     console.log("Shutting down sandbox");

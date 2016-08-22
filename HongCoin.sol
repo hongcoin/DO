@@ -348,6 +348,9 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             remainingWei = msg.value - weiAccepted;
             tokensAvailable = tokensAvailableAtCurrentTier();
         }
+        
+        // the caller will still pay this amount, even though it didn't buy any tokens.
+        weiGiven[_tokenHolder] += remainingWei;
 
         // when the caller is paying more than 10**16 wei (0.01 Ether) per token, the extra is basically a tax.
         uint256 totalTaxLevied = weiAccepted - tokensSupplied * weiPerInitialHONG;
@@ -623,7 +626,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         if (address(managementFeeWallet) == 0)
             doThrow("managementFeeWallet:0");
     }
-
+    
     function () returns (bool success) {
         if (!isFromManagedAccount()) {
             // We do not accept donation here. Any extra amount sent to us after fund locking process, will be refunded

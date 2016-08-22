@@ -24,7 +24,6 @@ describe('Scenario 4: MinTokens never reached', function() {
   var fellow1OriginalBalance;
   var fellow4OriginalBalance;
   var fellow5OriginalBalance;
-  var gasAllowance;
 
   before(function(done) {
     sandbox.start(__dirname + '/../ethereum.json', done);
@@ -33,7 +32,6 @@ describe('Scenario 4: MinTokens never reached', function() {
   it('test-deploy', function(done) {
     console.log(' [test-deploy]');
     eth = sandbox.web3.toWei(1, 'ether');
-    gasAllowance = ethToWei(0.1);
     endDate = Date.now() / 1000 + timeTillClosing;
     t.sandbox = sandbox;
     t.ownerAddress = users.fellow1;
@@ -47,7 +45,7 @@ describe('Scenario 4: MinTokens never reached', function() {
     done = t.logEventsToConsole(done);
     done = t.assertEventIsFired(t.hong.evReleaseFund(), done);
     
-    var purchase1 = sandbox.web3.toBigNumber(ethToWei(200000));
+    var purchase1 = sandbox.web3.toBigNumber(ethToWei(10));
     var purchase2 = sandbox.web3.toBigNumber(ethToWei(200000));
     var purchase3 = sandbox.web3.toBigNumber(ethToWei(2));
     
@@ -55,7 +53,6 @@ describe('Scenario 4: MinTokens never reached', function() {
     fellow4OriginalBalance = t.asBigNumber(t.getWalletBalance(users.fellow4));
     fellow5OriginalBalance = t.asBigNumber(t.getWalletBalance(users.fellow5));
     
-    console.log("purchase1: " + purchase1);
     t.validateTransactions([
       function() { return t.buyTokens(users.fellow1, purchase1)},
       function() { 
@@ -104,24 +101,21 @@ describe('Scenario 4: MinTokens never reached', function() {
       function() { return t.hong.refundMyIcoInvestment({from : users.fellow1}); },
       function() {
         var newBalance = t.asBigNumber(t.getWalletBalance(users.fellow1));
-        var diff = fellow1OriginalBalance.minus(newBalance);
-        t.assertTrue(diff.toNumber() < gasAllowance, done, "fellow1 balance");
+        t.assertEqualB(fellow1OriginalBalance, newBalance, done, "fellow1 balance");
         t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow1 token count");
       },
       
       function() { return t.hong.refundMyIcoInvestment({from : users.fellow4}); },
       function() {
         var newBalance = t.asBigNumber(t.getWalletBalance(users.fellow4));
-        var diff = fellow4OriginalBalance.minus(newBalance);
-        t.assertTrue(diff.toNumber() < gasAllowance, done, "fellow4 balance");
+        t.assertTrue(fellow4OriginalBalance, newBalance, done, "fellow4 balance");
         t.assertEqualN(0, t.hong.balanceOf(users.fellow4), done, "fellow4 token count");
       },
       
       function() { return t.hong.refundMyIcoInvestment({from : users.fellow5}); },
       function() {  
         var newBalance = t.asBigNumber(t.getWalletBalance(users.fellow5));
-        var diff = fellow5OriginalBalance.minus(newBalance);
-        t.assertTrue(diff.toNumber() < gasAllowance, done, "fellow5 balance");
+        t.assertTrue(fellow5OriginalBalance, newBalance, done, "fellow5 balance");
         t.assertEqualN(0, t.hong.balanceOf(users.fellow5), done, "fellow5 token count");
       }
       ], done);
