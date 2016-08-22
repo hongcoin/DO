@@ -1,8 +1,3 @@
-/*
- * Testing for ${home}/HongCoin.sol
- * README:
- * To run the tests, run 'mocha test test/HongCoin_test.js' in the bash terminal
- */
 var Sandbox = require('ethereum-sandbox-client');
 var helper = require('ethereum-sandbox-helper');
 var t = require("../utils.js");

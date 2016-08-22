@@ -106,6 +106,15 @@ module.exports = {
     this.assertEqual(this.asNumber(expected), this.asNumber(actual), done, msg);
   },
 
+  assertEqualB : function (expected, actual, done, msg) {
+    if (!(expected.equals(actual))) {
+      var errorMsg = "Failed the '" + msg + "' check, '" + expected + "' != '" + actual + "'";
+      done(new Error(errorMsg));
+      this.sandbox.stop(done);
+      assert(false, errorMsg); // force an exception
+    }
+  },
+
   assertEqual : function (expected, actual, done, msg) {
     if (!(expected == actual)) {
       var errorMsg = "Failed the '" + msg + "' check, '" + expected + "' != '" + actual + "'";
@@ -126,6 +135,11 @@ module.exports = {
   asNumber : function (ethNumber) {
     return this.sandbox.web3.toBigNumber(ethNumber).toNumber();
   },
+
+  asBigNumber : function (ethNumber) {
+    return this.sandbox.web3.toBigNumber(ethNumber);
+  },
+
 
   assertEventIsFiredByName : function (eventType, done, eventName) {
     return this.assertEventIsFired(eventType, done, function(event) {
@@ -223,5 +237,16 @@ module.exports = {
           nextValidation();
           that.validateTransactions(txAndValidation, done);
       });
+  },
+  
+  printBalances : function() {
+    console.log("-------");
+    console.log("Hong: " + this.hong.actualBalance());
+    console.log("extraBalanceWallet: " + this.getWalletBalance(this.hong.extraBalanceWallet()));
+    console.log("managementFeeWallet: " + this.getWalletBalance(this.hong.managementFeeWallet()));
+    console.log("returnWallet: " + this.getWalletBalance(this.hong.returnWallet()));
+    console.log("rewardWallet: " + this.getWalletBalance(this.hong.rewardWallet()));
+    console.log("managementBody: " + this.getWalletBalance(this.hong.managementBodyAddress()));
+    console.log("");
   }
 };
