@@ -235,6 +235,7 @@ contract GovernanceInterface is ErrorHandler, HongConfiguration {
 
     modifier notLocked() {if (isFundLocked) doThrow("notLocked"); else {_}}
     modifier onlyLocked() {if (!isFundLocked) doThrow("onlyLocked"); else {_}}
+    modifier notReleased() {if (isFundReleased) doThrow("notReleased"); else {_}}
     modifier onlyHarvestEnabled() {if (!isHarvestEnabled) doThrow("onlyHarvestEnabled"); else {_}}
     modifier onlyDistributionNotInProgress() {if (isDistributionInProgress) doThrow("onlyDistributionNotInProgress"); else {_}}
     modifier onlyDistributionNotReady() {if (isDistributionReady) doThrow("onlyDistributionNotReady"); else {_}}
@@ -304,7 +305,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         closingTime = _closingTime;
     }
 
-    function createTokenProxy(address _tokenHolder) internal notLocked hasEther returns (bool success) {
+    function createTokenProxy(address _tokenHolder) internal notLocked notReleased hasEther returns (bool success) {
 
         // Business logic (but no state changes)
         // setup transaction details
@@ -329,7 +330,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             if (tokensAvailable == 0 && tokensCreated == maxTokensToCreate) {
                 tokensToSellInBatch = tokensRequested;
             }
-
+            
             uint priceForBatch = tokensToSellInBatch * weiPerLatestHONG;
 
             // track to total wei accepted and total tokens supplied
@@ -520,8 +521,8 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             tierThreshold = maxTokensToCreate;
         }
 
+        // this can happen on the final purchase in the last tier
         if (_tokensCreated > tierThreshold) {
-            doThrow("more than maxTokens created!");
             return 0;
         }
 
@@ -560,27 +561,13 @@ contract HONGInterface is ErrorHandler, HongConfiguration {
 
     address public managementBodyAddress;
 
-    modifier onlyVoteHarvestOnce() {
-        // prevent duplicate voting from the same token holder
-        if(votedHarvest[msg.sender] > 0){doThrow("onlyVoteHarvestOnce");}
-        else {_}
-    }
-    modifier onlyCollectOnce() {
-        // prevent return being collected by the same token holder
-        if(returnCollected[msg.sender]){doThrow("onlyCollectOnce");}
-        else {_}
-    }
-
     // 3 most important votings in blockchain
     mapping (uint => mapping (address => uint)) public votedKickoff;
     mapping (address => uint) public votedFreeze;
     mapping (address => uint) public votedHarvest;
-    mapping (address => bool) public returnCollected;
-
     mapping (uint => uint256) public supportKickoffQuorum;
     uint256 public supportFreezeQuorum;
     uint256 public supportHarvestQuorum;
-
     uint public totalInitialBalance;
     uint public annualManagementFee;
 
@@ -604,10 +591,22 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
     function HONG(
         address _managementBodyAddress,
-        uint _closingTime
+        uint _closingTime,
+        uint _closingTimeExtensionPeriod,
+        uint _lastKickoffDateBuffer,
+        uint _minTokensToCreate,
+        uint _maxTokensToCreate,
+        uint _tokensPerTier
     ) TokenCreation(_managementBodyAddress, _closingTime) {
 
         managementBodyAddress = _managementBodyAddress;
+        closingTimeExtensionPeriod = _closingTimeExtensionPeriod;
+        lastKickoffDateBuffer = _lastKickoffDateBuffer;
+        
+        minTokensToCreate = _minTokensToCreate;
+        maxTokensToCreate = _maxTokensToCreate;
+        tokensPerTier = _tokensPerTier;
+        
         returnWallet = new ReturnWallet(managementBodyAddress);
         rewardWallet = new RewardWallet(address(returnWallet));
         managementFeeWallet = new ManagementFeeWallet(managementBodyAddress, address(returnWallet));
@@ -736,7 +735,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         votedFreeze[msg.sender] = 0;
     }
 
-    function voteToHarvestFund() onlyTokenHolders noEther onlyLocked onlyFinalFiscalYear onlyVoteHarvestOnce {
+    function voteToHarvestFund() onlyTokenHolders noEther onlyLocked onlyFinalFiscalYear {
 
         supportHarvestQuorum -= votedHarvest[msg.sender];
         supportHarvestQuorum += balances[msg.sender];
@@ -749,9 +748,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
         }
     }
 
-    function collectMyReturn() onlyTokenHolders noEther onlyDistributionReady onlyCollectOnce {
-        returnCollected[msg.sender] = true;
-        returnWallet.payTokenHolderBasedOnTokenCount(msg.sender, balances[msg.sender]);
+    function collectMyReturn() onlyTokenHolders noEther onlyDistributionReady {
+        uint tokens = balances[msg.sender];
+        balances[msg.sender] = 0;
+        returnWallet.payTokenHolderBasedOnTokenCount(msg.sender, tokens);
     }
 
     function mgmtInvestProject(

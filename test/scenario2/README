@@ -1,0 +1,2 @@
+Scenario 2:
+This scenario verifies that the contract will lock when the minTokens is reached before the closingTime.
