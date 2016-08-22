@@ -1,2 +1,2 @@
 Scenario 3:
-This scenario is just verifies that the contract will lock when the minTokens during the extensions period.
+This scenario verifies that the contract will lock when the minTokens during the extensions period.

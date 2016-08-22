@@ -15,12 +15,16 @@ describe('Scenario 4: MinTokens never reached', function() {
   var MINUTE = 60 * SECOND;
   var HOUR = 60 * MINUTE;
   var DAY = 24 * HOUR;
-  var timeTillClosing = 4 * SECOND;
-  var extensionPeriod = 2 * SECOND;
+  var timeTillClosing = 5 * SECOND;
+  var extensionPeriod = 3 * SECOND;
   var endDate;
   var lastKickoffDateBuffer = 304*DAY;
   var eth;
   var ethToWei = function(eth) { return sandbox.web3.toWei(eth, "ether");};
+  var fellow1OriginalBalance;
+  var fellow4OriginalBalance;
+  var fellow5OriginalBalance;
+  var gasAllowance;
 
   before(function(done) {
     sandbox.start(__dirname + '/../ethereum.json', done);
@@ -29,6 +33,7 @@ describe('Scenario 4: MinTokens never reached', function() {
   it('test-deploy', function(done) {
     console.log(' [test-deploy]');
     eth = sandbox.web3.toWei(1, 'ether');
+    gasAllowance = ethToWei(0.1);
     endDate = Date.now() / 1000 + timeTillClosing;
     t.sandbox = sandbox;
     t.ownerAddress = users.fellow1;
@@ -39,16 +44,23 @@ describe('Scenario 4: MinTokens never reached', function() {
   it('locks fund if minTokens is reached after closingTime but before extensions period', function(done) {
     console.log(' [locks fund if minTokens is reached after closingTime but before extensions period]');
     var secondClosingTime = t.asNumber(t.hong.closingTime()) + t.asNumber(t.hong.closingTimeExtensionPeriod());
+    done = t.logEventsToConsole(done);
     done = t.assertEventIsFired(t.hong.evReleaseFund(), done);
+    
     var purchase1 = sandbox.web3.toBigNumber(ethToWei(200000));
     var purchase2 = sandbox.web3.toBigNumber(ethToWei(200000));
     var purchase3 = sandbox.web3.toBigNumber(ethToWei(2));
-    console.log("purchase3: " + purchase3);
-    var expectedTotal = purchase1.plus(purchase2).plus(purchase3);
-    console.log("expectedTotal: " + expectedTotal.toString());
+    
+    fellow1OriginalBalance = t.asBigNumber(t.getWalletBalance(users.fellow1));
+    fellow4OriginalBalance = t.asBigNumber(t.getWalletBalance(users.fellow4));
+    fellow5OriginalBalance = t.asBigNumber(t.getWalletBalance(users.fellow5));
+    
+    console.log("purchase1: " + purchase1);
     t.validateTransactions([
       function() { return t.buyTokens(users.fellow1, purchase1)},
-      function() { t.assertEqual(false, t.hong.isMinTokensReached(), done, "min tokens reached")},
+      function() { 
+        t.assertEqual(false, t.hong.isMinTokensReached(), done, "min tokens reached");
+      },
       
       function() {
         t.sleepUntil(t.hong.closingTime());
@@ -64,16 +76,12 @@ describe('Scenario 4: MinTokens never reached', function() {
       function() {
         t.assertEqual(false, t.hong.isMinTokensReached(), done, "min tokens reached (3)");
         t.assertEqual(true, t.hong.isFundReleased(), done, "is fund released");
-        t.assertEqualN(0, t.hong.actualBalance(), done, "hong balance");
-        t.assertEqualN(0, t.getWalletBalance(t.hong.extraBalanceWallet()), done, "extraBalance wallet");
-        t.assertEqualN(0, t.getWalletBalance(t.hong.managementFeeWallet()), done, "mgmt fee wallet");
-        t.assertEqualN(0, t.getWalletBalance(t.hong.rewardWallet()), done, "reward wallet");
-        t.assertEqualN(expectedTotal, t.getWalletBalance(t.hong.returnWallet()), done, "retrun wallet")
       }
       ], done);
   });
   
   it('no more tokens will be sold once the fund is released', function(done) {
+    console.log(' [no more tokens will be sold once the fund is released]');
     var buyer = users.fellow7;
     done = t.logEventsToConsole(done);
     done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "notReleased");
@@ -81,6 +89,40 @@ describe('Scenario 4: MinTokens never reached', function() {
       function() { return t.buyTokens(buyer, 2*eth); },
       function() {
         t.assertEqualN(0, t.hong.balanceOf(buyer), done, "token count");
+      }
+      ], done);
+  });
+    
+  it('allows users to get a refund', function(done) {
+    done = t.logEventsToConsole(done);
+    
+    t.assertTrue(t.asNumber(t.hong.balanceOf(users.fellow1)) > 0, done, "fellow1 has tokens");
+    t.assertTrue(t.asNumber(t.hong.balanceOf(users.fellow4)) > 0, done, "fellow4 has tokens");
+    t.assertTrue(t.asNumber(t.hong.balanceOf(users.fellow5)) > 0, done, "fellow5 has tokens");
+    
+    t.validateTransactions([
+      function() { return t.hong.refundMyIcoInvestment({from : users.fellow1}); },
+      function() {
+        var newBalance = t.asBigNumber(t.getWalletBalance(users.fellow1));
+        var diff = fellow1OriginalBalance.minus(newBalance);
+        t.assertTrue(diff.toNumber() < gasAllowance, done, "fellow1 balance");
+        t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow1 token count");
+      },
+      
+      function() { return t.hong.refundMyIcoInvestment({from : users.fellow4}); },
+      function() {
+        var newBalance = t.asBigNumber(t.getWalletBalance(users.fellow4));
+        var diff = fellow4OriginalBalance.minus(newBalance);
+        t.assertTrue(diff.toNumber() < gasAllowance, done, "fellow4 balance");
+        t.assertEqualN(0, t.hong.balanceOf(users.fellow4), done, "fellow4 token count");
+      },
+      
+      function() { return t.hong.refundMyIcoInvestment({from : users.fellow5}); },
+      function() {  
+        var newBalance = t.asBigNumber(t.getWalletBalance(users.fellow5));
+        var diff = fellow5OriginalBalance.minus(newBalance);
+        t.assertTrue(diff.toNumber() < gasAllowance, done, "fellow5 balance");
+        t.assertEqualN(0, t.hong.balanceOf(users.fellow5), done, "fellow5 token count");
       }
       ], done);
   });

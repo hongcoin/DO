@@ -66,9 +66,10 @@ describe('Scenario 3: HONG Contract Suite', function() {
       },
       function() {
         t.sleepUntil(secondClosingTime);
-        return t.buyTokens(users.fellow5, 300000*eth) 
+        return t.buyTokens(users.fellow5, 1*eth); 
       },
       function() {
+        t.assertEqual(false, t.hong.isMaxTokensReached(), done, "max tokens reached");
         t.assertEqual(true, t.hong.isMinTokensReached(), done, "min tokens reached (4)");
         t.assertEqual(true, t.hong.isFundLocked(), done, "is fund locked");
       }
