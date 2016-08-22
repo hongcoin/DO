@@ -170,7 +170,7 @@ contract ExtraBalanceWallet is OwnedAccount {
     function returnAmountToMainAccount(uint _amount) {
         payOutAmount(owner, _amount);
     }
-    
+
     function payBalanceToReturnWallet() {
         payOutAmount(returnWalletAddress, this.balance);
     }
@@ -331,7 +331,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             if (tokensAvailable == 0 && tokensCreated == maxTokensToCreate) {
                 tokensToSellInBatch = tokensRequested;
             }
-            
+
             uint priceForBatch = tokensToSellInBatch * weiPerLatestHONG;
 
             // track to total wei accepted and total tokens supplied
@@ -358,9 +358,10 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
         // External calls
         if (totalTaxLevied > 0) {
-            if (!extraBalanceWallet.send(totalTaxLevied))
+            if (!extraBalanceWallet.send(totalTaxLevied)){
                 doThrow("extraBalance:sendFail");
                 return;
+            }
         }
 
         // Events.  Safe to publish these now that we know it all worked
@@ -453,7 +454,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         isDistributionInProgress = true;
         isDistributionReady = true;
 
-        // (1) HONG main account
         payBalanceToReturnWallet();
         managementFeeWallet.payBalanceToReturnWallet();
         rewardWallet.payBalanceToReturnWallet();
@@ -604,11 +604,11 @@ contract HONG is HONGInterface, Token, TokenCreation {
         managementBodyAddress = _managementBodyAddress;
         closingTimeExtensionPeriod = _closingTimeExtensionPeriod;
         lastKickoffDateBuffer = _lastKickoffDateBuffer;
-        
+
         minTokensToCreate = _minTokensToCreate;
         maxTokensToCreate = _maxTokensToCreate;
         tokensPerTier = _tokensPerTier;
-        
+
         returnWallet = new ReturnWallet(managementBodyAddress);
         rewardWallet = new RewardWallet(address(returnWallet));
         managementFeeWallet = new ManagementFeeWallet(managementBodyAddress, address(returnWallet));
