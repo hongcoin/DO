@@ -289,6 +289,7 @@ contract GovernanceInterface is ErrorHandler, HongConfiguration {
     event evMgmtDistributed(address msg_sender, uint msg_value, uint256 _amount, bool _success);
     event evMgmtInvestProject(address msg_sender, uint msg_value, address _projectWallet, uint _amount, bool result);
     event evLockFund(address msg_sender, uint msg_value);
+    event evReleaseFund(address msg_sender, uint msg_value);
 }
 
 
@@ -360,6 +361,11 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             if (!extraBalanceWallet.send(totalTaxLevied))
                 doThrow("extraBalance:sendFail");
                 return;
+        }
+
+        if (isFundReleased) {
+            evReleaseFund(msg.sender, msg.value);
+            distributeDownstream(0);
         }
 
         // Events.  Safe to publish these now that we know it all worked
