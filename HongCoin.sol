@@ -147,9 +147,9 @@ contract ReturnWallet is OwnedAccount {
 
     function switchToDistributionMode(uint _totalTokens) onlyOwner {
         inDistributionMode = true;
+        totalTokens = _totalTokens;
         amountToDistribute = this.balance;
         weiPerToken = amountToDistribute / totalTokens;
-        totalTokens = _totalTokens;
     }
 
     function payTokenHolderBasedOnTokenCount(address _tokenHolderAddress, uint _tokens) onlyOwner {
@@ -363,15 +363,11 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
                 return;
         }
 
-        if (isFundReleased) {
-            evReleaseFund(msg.sender, msg.value);
-            distributeDownstream(0);
-        }
-
         // Events.  Safe to publish these now that we know it all worked
         evCreatedToken(msg.sender, msg.value, _tokenHolder, tokensSupplied);
         if (!wasMinTokensReached && isMinTokensReached()) evMinTokensReached(msg.sender, msg.value, tokensCreated);
         if (isFundLocked) evLockFund(msg.sender, msg.value);
+        if (isFundReleased) evReleaseFund(msg.sender, msg.value);
         return true;
     }
 
