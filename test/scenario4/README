@@ -1,0 +1,3 @@
+Scenario 4:
+* verifies that the contract releases funds back to all investors if the minTokens is not reached after the extension period.
+* verifies that no more eth will be accepted by the contract after the fund is released
