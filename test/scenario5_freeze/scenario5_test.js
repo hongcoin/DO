@@ -104,6 +104,30 @@ describe(scenario, function() {
         t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
       },
       
+      function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+      function() { 
+        console.log("Validating fellow 1 transers tokens to fellow2, freeze votes are reverted ...")
+        t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
+        t.assertEqualN(0, t.hong.supportFreezeQuorum(), done, "freeze vote count");
+        t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
+      },
+      
+      function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
+      function() { 
+        console.log("Validating fellow 2 transers tokens back to fellow1 ...")
+        t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
+        t.assertEqualN(0, t.hong.supportFreezeQuorum(), done, "freeze vote count");
+        t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
+      },
+      
+      function() { return t.hong.voteToFreezeFund({from: users.fellow1})},
+      function() { 
+        console.log("Validating fellow 1 votes to freeze again after getting tokens back ...")
+        var expectedVotes = tokens1;
+        t.assertEqualN(expectedVotes, t.hong.supportFreezeQuorum(), done, "freeze vote count");
+        t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
+      },
+      
       /* Fellow 2 votes to freeze */
       function() { return t.hong.voteToFreezeFund({from: users.fellow2})},
       function() { 
@@ -113,12 +137,29 @@ describe(scenario, function() {
         t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
       },
       
+      function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+      function() { 
+        console.log("Validating fellow 1 transers tokens to fellow2, freeze votes are reverted ...")
+        t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
+        t.assertEqualN(tokens1 + tokens2, t.hong.balanceOf(users.fellow2), done, "fellow 2 tokens");
+        t.assertEqualN(tokens2, t.hong.supportFreezeQuorum(), done, "freeze vote count");
+        t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
+      },
+      
+      /* Fellow 2 votes to freeze after getting more tokens  */
+      function() { return t.hong.voteToFreezeFund({from: users.fellow2})},
+      function() { 
+        console.log("Validating fellow 2 votes to freeze again after getting more tokens...")
+        var expectedVotes = tokens1 + tokens2;
+        t.assertEqualN(expectedVotes, t.hong.supportFreezeQuorum(), done, "freeze vote count");
+        t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
+      },
+      
       /* Fellow 2 changes his mind */
       function() { return t.hong.voteToUnfreezeFund({from: users.fellow2})},
       function() { 
         console.log("Validating fellow 2 voted to unfreeze...")
-        var expectedVotes = tokens1;
-        t.assertEqualN(expectedVotes, t.hong.supportFreezeQuorum(), done, "freeze vote count");
+        t.assertEqualN(0, t.hong.supportFreezeQuorum(), done, "freeze vote count");
         t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
       },
       
