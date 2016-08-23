@@ -51,6 +51,10 @@ module.exports = {
       );
   },
 
+  sleepFor : function( seconds ){
+    this.sleepUntil(this.now() + seconds);
+  },
+
   sleepUntil : function( deadline ){
     console.log("Sleeping for " + (deadline - this.now()) + "s");
     while(this.now() < deadline){ /* do nothing */ } 
@@ -128,7 +132,7 @@ module.exports = {
     if (!exp) {
       done(new Error("Failed the '" + msg + "' check"));
       this.sandbox.stop(done);
-      this.assert(false, msg); // force an exception
+      assert(false, msg); // force an exception
     }
   },
 
@@ -140,6 +144,9 @@ module.exports = {
     return this.sandbox.web3.toBigNumber(ethNumber);
   },
 
+  assertException : function(receipt, done) {
+    this.assertTrue(receipt.exception, done, "expected exception");
+  },
 
   assertEventIsFiredByName : function (eventType, done, eventName) {
     return this.assertEventIsFired(eventType, done, function(event) {
@@ -231,10 +238,9 @@ module.exports = {
       var txHash = nextTx();
       // console.log("Wating for tx " + txHash);
       var that = this;
-      this.helper.waitForReceipt(this.sandbox.web3, txHash, function(err, receipt) {
-          // console.log("tx done " + txHash);
+      this.helper.waitForSandboxReceipt(this.sandbox.web3, txHash, function(err, receipt) {
           if (err) return done(err);
-          nextValidation();
+          nextValidation(receipt);
           that.validateTransactions(txAndValidation, done);
       });
   },

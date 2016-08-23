@@ -112,7 +112,7 @@ contract OwnedAccount is ErrorHandler {
     }
 
     function payOutPercentage(address _recipient, uint _percent) internal onlyOwner noEther {
-        payOutAmount(_recipient, this.balance * (_percent/100));
+        payOutAmount(_recipient, (this.balance * _percent) / 100);
     }
 
     function payOutAmount(address _recipient, uint _amount) internal onlyOwner noEther {
@@ -321,7 +321,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             doThrow("noTokensToSell");
             return false;
         }
-
+        
         // Sell tokens in batches based on the current price.
         while (remainingWei >= weiPerLatestHONG) {
             uint tokensRequested = remainingWei / weiPerLatestHONG;
