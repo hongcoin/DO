@@ -28,6 +28,7 @@ describe('HONG Contract Suite', function() {
   var timeTillClosing = 1 * DAY;
   var endDate = Date.now() / 1000 + timeTillClosing;
   var eth;
+  var kickoffDelay= 1*SECOND;
 
   before(function(done) {
     sandbox.start(__dirname + '/../ethereum.json', done);
@@ -48,7 +49,7 @@ describe('HONG Contract Suite', function() {
       t.sandbox = sandbox;
       t.ownerAddress = users.fellow1;
       t.helper = helper;
-      t.createContract(compiled, done, endDate);
+      t.createContract(compiled, done, endDate, 1*SECOND, kickoffDelay);
     });
   });
   
@@ -418,6 +419,13 @@ describe('HONG Contract Suite', function() {
           function() {
             t.assertEqualN(tokens, t.hong.supportKickoffQuorum(fiscalYear), done, "voted kickoff quorum count");
             t.assertEqual(false, t.hong.isInitialKickoffEnabled(), done, "kickoff enabled");
+          },
+          
+          // verify additional vote has no effect
+          function() { return t.hong.voteToKickoffFund({from: tokenHolder})},
+          function() {
+            t.assertEqualN(tokens, t.hong.supportKickoffQuorum(fiscalYear), done, "voted kickoff quorum count");
+            t.assertEqual(false, t.hong.isInitialKickoffEnabled(), done, "kickoff enabled");
           }
         ], done);
     });
@@ -445,12 +453,188 @@ describe('HONG Contract Suite', function() {
           function() {
             t.assertEqual(true, t.hong.isInitialKickoffEnabled(), done, "kickoff enabled");
             t.assertEqualN(0, t.getWalletBalance(t.hong.extraBalanceWallet()), done, "extra balance");
+            t.assertEqualN(1, t.hong.currentFiscalYear(), done, "fiscal year");
             t.assertEqualN(expectedMgmtFeeBalance, t.getWalletBalance(t.hong.managementFeeWallet()), done, "mgmt fee");
             t.assertTrue(expectedMgmtBodyBalance.equals(sandbox.web3.toBigNumber(t.getWalletBalance(ownerAddress))), done, "mgmtBody payment");
           }
         ], done);
     });
+    
+    it ('does not allow harvest in FY1', function(done) {
+      done = t.logEventsToConsole(done);
+      done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "currentFiscalYear<4");
+      t.validateTransactions([
+        function() { return t.hong.voteToHarvestFund({from: users.fellow2})},
+        function() {
+          t.assertEqualN(0, t.hong.supportHarvestQuorum(), done, "no harvest votes");
+        }
+        ], done);
+    });
+    
+    it ('can kickoff FY2', function(done) {
+      t.sleepFor(kickoffDelay)
+      done = t.logEventsToConsole(done);
+      t.validateTransactions([
+        function() { return t.hong.voteToKickoffFund({from: users.fellow2})},
+        function() {},
+        function() { return t.hong.voteToKickoffFund({from: users.fellow5})},
+        function() {
+          t.assertEqualN(2, t.hong.currentFiscalYear(), done, "fiscal year");
+        },
+        ], done);
+    });
+    
+    it ('can kickoff FY3', function(done) {
+      t.sleepFor(kickoffDelay)
+      done = t.logEventsToConsole(done);
+      t.validateTransactions([
+        function() { return t.hong.voteToKickoffFund({from: users.fellow2})},
+        function() {},
+        function() { return t.hong.voteToKickoffFund({from: users.fellow5})},
+        function() {
+          t.assertEqualN(3, t.hong.currentFiscalYear(), done, "fiscal year");
+        },
+        ], done);
+    });
+    
+    it ('can kickoff FY4', function(done) {
+      t.sleepFor(kickoffDelay)
+      done = t.logEventsToConsole(done);
+      t.validateTransactions([
+        function() { return t.hong.voteToKickoffFund({from: users.fellow2})},
+        function() {},
+        function() { return t.hong.voteToKickoffFund({from: users.fellow5})},
+        function() {
+          t.assertEqualN(4, t.hong.currentFiscalYear(), done, "fiscal year");
+        },
+        ], done);
+    });
+    
+    it ('canote kickoff FY5', function(done) {
+      t.sleepFor(kickoffDelay)
+      done = t.logEventsToConsole(done);
+      done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "kickOff:4thYear");
+      t.validateTransactions([
+        function() { return t.hong.voteToKickoffFund({from: users.fellow2})},
+        function() {},
+        function() { return t.hong.voteToKickoffFund({from: users.fellow5})},
+        function() {
+          t.assertEqualN(4, t.hong.currentFiscalYear(), done, "fiscal year");
+        },
+        ], done);
+    });
+    
+    it ('does not allow non-token holder to vote harvest', function(done) {
+      console.log('[does not allow non-token holder to vote harvest]');
+      var nonTokenHolder = users.fellow6;
+      
+      done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyTokenHolders");
+      t.validateTransactions([
+          function() { return t.hong.voteToHarvestFund({from: nonTokenHolder})},
+          function() {
+            t.assertEqualN(0, t.hong.supportHarvestQuorum(), done, "voted harvest quorum count");
+          }
+        ], done);
+    });
+    
+    it ('allows harvest in FY4', function(done) {
+      var tokenHolder = users.fellow2;
+      var tokens = t.hong.balanceOf(tokenHolder);
+      done = t.logEventsToConsole(done);
+      t.validateTransactions([
+        function() { return t.hong.voteToHarvestFund({from: tokenHolder})},
+        function() {
+          t.assertEqualN(tokens, t.hong.supportHarvestQuorum(), done, "harvest votes");
+          t.assertEqual(false, t.hong.isHarvestEnabled(), done, "harvest not enabled");
+        }
+        ], done);
+    });
+    
+    it ('ignores duplicate harvest votes', function(done) {
+      var tokenHolder = users.fellow2;
+      var tokens = t.hong.balanceOf(tokenHolder);
+      done = t.logEventsToConsole(done);
+      t.validateTransactions([
+        function() { return t.hong.voteToHarvestFund({from: tokenHolder})},
+        function() {
+          t.assertEqualN(tokens, t.hong.supportHarvestQuorum(), done, "harvest votes");
+          t.assertEqual(false, t.hong.isHarvestEnabled(), done, "harvest not enabled");
+        }
+        ], done);
+    });
+    
+    it ('does not allow mggmtBody to call mgmtDistribute before harvest is enabled', function(done) {
+      done = t.logEventsToConsole(done);
+      done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyHarvestEnabled");
+      t.validateTransactions([
+        function() { return t.hong.mgmtDistribute({from: ownerAddress})},
+        function() {
+          t.assertEqualN(false, t.hong.isDistributionReady(), done, "distribution not ready");
+        }
+        ], done);
+    });
+    
+    it ('triggers harvest when quorum is reached', function(done) {
+      done = t.logEventsToConsole(done);
+      done = t.assertEventIsFired(t.hong.evHarvest(), done);
+
+      t.validateTransactions([
+        function() { return t.hong.voteToHarvestFund({from: users.fellow2})},
+        function() { },
+        
+        function() { return t.hong.voteToHarvestFund({from: users.fellow3})},
+        function() { },
+        
+        function() { return t.hong.voteToHarvestFund({from: users.fellow5})},
+        function() { 
+          t.assertEqual(true, t.hong.isHarvestEnabled(), done, "harvest enabled");       
+        },
+        ], done);
+    });
+    
+    it ('does not allow non-owner to call mgmtDistribut', function(done) {
+      done = t.logEventsToConsole(done);
+      done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
+      t.validateTransactions([
+        function() { return t.hong.mgmtDistribute({from: users.fellow2})},
+        function() {
+          t.assertEqual(false, t.hong.isDistributionReady(), done, "distribution not ready");
+        }
+        ], done);
+    });
+    
+    it ('allows mgmtDistribute by mgmtBody after harvest is enabled', function(done) {
+      done = t.logEventsToConsole(done);
+      done = t.assertEventIsFired(t.hong.evMgmtDistributed(), done);
+      
+      var hongBalance = t.asBigNumber(t.hong.actualBalance());
+      var extraBalance = t.asBigNumber(t.getWalletBalance(t.hong.extraBalanceWallet()));
+      var mgmtFeeWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.managementFeeWallet()));
+      var returnWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.returnWallet())); 
+      var rewardWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.rewardWallet())); 
+      
+      var totalFunds = returnWalletBalance
+                        .plus(hongBalance)
+                        .plus(extraBalance)
+                        .plus(mgmtFeeWalletBalance)
+                        .plus(rewardWalletBalance);
+                        
+      var mgmtRewardFraction = t.hong.mgmtRewardPercentage() / 100;
+      var expectedMgmtReward = totalFunds.times(mgmtRewardFraction).floor();
+      var expectedReturnWalletBalance = totalFunds.minus(expectedMgmtReward);
+      t.validateTransactions([
+        function() { return t.hong.mgmtDistribute({from: ownerAddress})},
+        function() {
+          var actualReturnWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.returnWallet()));
+          t.assertEqual(true, t.hong.isDistributionReady(), done, "distribution ready");
+          t.assertEqualB(expectedReturnWalletBalance, actualReturnWalletBalance, done, "return wallet balance");
+        }
+        ], done);
+    });
+    
   });
+  
+  
   
   function checkPriceForTokens(done, buyer, ethToSend, expectedTokens) {
     console.log("[checking token price, expecting " + ethToSend + " for " + expectedTokens + " tokens]");

@@ -10,7 +10,6 @@ var compiled;
 var eth;
 var nothingToAssert = function(){};
 var scenario = "Scenario 5: Freezing the fund";
-var ethToWei = function(eth) { return sandbox.web3.toWei(eth, "ether");};
 
 describe(scenario, function() {
   console.log(scenario);
@@ -86,11 +85,20 @@ describe(scenario, function() {
                                         .plus(rewardWalletBalance);
     console.log("expectedTotal: " + expectedReturnWalletBalance.toString());
 
+    done = t.logEventsToConsole(done);
     done = t.assertEventIsFired(t.hong.evFreeze(), done);
     t.validateTransactions([
       function() { return t.hong.voteToFreezeFund({from: users.fellow1})},
       function() { 
         console.log("Validating fellow 1 voted to freeze...")
+        var expectedVotes = tokens1;
+        t.assertEqualN(expectedVotes, t.hong.supportFreezeQuorum(), done, "freeze vote count");
+        t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
+      },
+      
+      function() { return t.hong.voteToFreezeFund({from: users.fellow1})},
+      function() { 
+        console.log("Validating fellow 1 voted to freeze (duplicate vote) ...")
         var expectedVotes = tokens1;
         t.assertEqualN(expectedVotes, t.hong.supportFreezeQuorum(), done, "freeze vote count");
         t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
