@@ -410,22 +410,87 @@ describe('HONG Contract Suite', function() {
     it ('allows token holder to vote kickoff', function(done) {
       console.log('[allows token holder to vote kickoff]');
       var fiscalYear = t.hong.currentFiscalYear()+1;
-      var tokenHolder = users.fellow2;
       
-      var tokens = t.hong.balanceOf(tokenHolder);
+      var tokens1 = t.asNumber(t.hong.balanceOf(users.fellow1));
+      var tokens2 = t.asNumber(t.hong.balanceOf(users.fellow2));
+      
+      var getQuorumCount = function() { return t.hong.supportKickoffQuorum(fiscalYear) };
+      var wasVoteSuccessful = function() { return t.hong.isInitialKickoffEnabled()};
+      var vote = function(params) { return t.hong.voteToKickoffFund(params) };
+      
       done = t.logEventsToConsole(done);
       t.validateTransactions([
-          function() { return t.hong.voteToKickoffFund({from: tokenHolder})},
+          function() { return vote({from: users.fellow1})},
           function() {
-            t.assertEqualN(tokens, t.hong.supportKickoffQuorum(fiscalYear), done, "voted kickoff quorum count");
-            t.assertEqual(false, t.hong.isInitialKickoffEnabled(), done, "kickoff enabled");
+            t.assertEqualN(tokens1, getQuorumCount(), done, "voted quorum count");
+            t.assertEqual(false, wasVoteSuccessful() , done, "not successful");
           },
           
           // verify additional vote has no effect
-          function() { return t.hong.voteToKickoffFund({from: tokenHolder})},
+          function() { return vote({from: users.fellow1})},
           function() {
-            t.assertEqualN(tokens, t.hong.supportKickoffQuorum(fiscalYear), done, "voted kickoff quorum count");
-            t.assertEqual(false, t.hong.isInitialKickoffEnabled(), done, "kickoff enabled");
+            t.assertEqualN(tokens1, getQuorumCount(), done, "voted quorum count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+
+          function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+          function() { 
+            console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+            t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
+            t.assertEqualN(0, getQuorumCount(), done, "vote count");
+          },
+          
+          function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
+          function() { 
+            console.log("Validating fellow 2 transers tokens back to fellow1 ...")
+            t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
+            t.assertEqualN(0, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+          
+          function() { return vote({from: users.fellow1})},
+          function() { 
+            console.log("Validating fellow 1 votes again after getting tokens back ...")
+            var expectedVotes = tokens1;
+            t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+          
+          /* Fellow 2 votes to kickoff */
+          function() { return vote({from: users.fellow2})},
+          function() { 
+            console.log("Validating fellow 2 voted...")
+            var expectedVotes = tokens1 + tokens2;
+            t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+          
+          function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+          function() { 
+            console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
+            t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
+            t.assertEqualN(tokens1 + tokens2, t.hong.balanceOf(users.fellow2), done, "fellow 2 tokens");
+            t.assertEqualN(tokens2, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+          
+          /* Fellow 2 votes to kickoff after getting more tokens  */
+          function() { return vote({from: users.fellow2})},
+          function() { 
+            console.log("Validating fellow 2 votes again after getting more tokens...")
+            var expectedVotes = tokens1 + tokens2;
+            t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+          
+          function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
+          function() { 
+            console.log("Validation fellow 2 gives fellow1 his tokens back ...")
+            t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
+            t.assertEqualN(tokens2, t.hong.balanceOf(users.fellow2), done, "fellow 2 tokens");
+            t.assertEqualN(tokens2, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           }
         ], done);
     });
@@ -510,7 +575,7 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
     
-    it ('canote kickoff FY5', function(done) {
+    it ('cannot kickoff FY5', function(done) {
       t.sleepFor(kickoffDelay)
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "kickOff:4thYear");
@@ -537,29 +602,90 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
     
-    it ('allows harvest in FY4', function(done) {
-      var tokenHolder = users.fellow2;
-      var tokens = t.hong.balanceOf(tokenHolder);
+    it ('allows token holders to harvest in FY4 and handles token transfer', function(done) {
+      console.log('[allows token holder to vote harvest and handles token transfer]');
+      var tokens1 = t.asNumber(t.hong.balanceOf(users.fellow1));
+      var tokens2 = t.asNumber(t.hong.balanceOf(users.fellow2));
+      
+      var getQuorumCount = function() { return t.hong.supportHarvestQuorum() };
+      var wasVoteSuccessful = function() { return t.hong.isHarvestEnabled()};
+      var vote = function(params) { return t.hong.voteToHarvestFund(params) };
+      
       done = t.logEventsToConsole(done);
       t.validateTransactions([
-        function() { return t.hong.voteToHarvestFund({from: tokenHolder})},
-        function() {
-          t.assertEqualN(tokens, t.hong.supportHarvestQuorum(), done, "harvest votes");
-          t.assertEqual(false, t.hong.isHarvestEnabled(), done, "harvest not enabled");
-        }
-        ], done);
-    });
-    
-    it ('ignores duplicate harvest votes', function(done) {
-      var tokenHolder = users.fellow2;
-      var tokens = t.hong.balanceOf(tokenHolder);
-      done = t.logEventsToConsole(done);
-      t.validateTransactions([
-        function() { return t.hong.voteToHarvestFund({from: tokenHolder})},
-        function() {
-          t.assertEqualN(tokens, t.hong.supportHarvestQuorum(), done, "harvest votes");
-          t.assertEqual(false, t.hong.isHarvestEnabled(), done, "harvest not enabled");
-        }
+          function() { return vote({from: users.fellow1})},
+          function() {
+            t.assertEqualN(tokens1, getQuorumCount(), done, "voted quorum count");
+            t.assertEqual(false, wasVoteSuccessful() , done, "not successful");
+          },
+          
+          // verify additional vote has no effect
+          function() { return vote({from: users.fellow1})},
+          function() {
+            console.log("Validating fellow 1 duplicate vote is ignored ...")
+            t.assertEqualN(tokens1, getQuorumCount(), done, "voted quorum count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+
+          function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+          function() { 
+            console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+            t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
+            t.assertEqualN(0, getQuorumCount(), done, "vote count");
+          },
+          
+          function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
+          function() { 
+            console.log("Validating fellow 2 transers tokens back to fellow1 ...")
+            t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
+            t.assertEqualN(0, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+          
+          function() { return vote({from: users.fellow1})},
+          function() { 
+            console.log("Validating fellow 1 votes again after getting tokens back ...")
+            var expectedVotes = tokens1;
+            t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+          
+          /* Fellow 2 votes to harvest */
+          function() { return vote({from: users.fellow2})},
+          function() { 
+            console.log("Validating fellow 2 voted...")
+            var expectedVotes = tokens1 + tokens2;
+            t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+          
+          function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+          function() { 
+            console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
+            t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
+            t.assertEqualN(tokens1 + tokens2, t.hong.balanceOf(users.fellow2), done, "fellow 2 tokens");
+            t.assertEqualN(tokens2, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+          
+          /* Fellow 2 votes to harvest after getting more tokens  */
+          function() { return vote({from: users.fellow2})},
+          function() { 
+            console.log("Validating fellow 2 votes again after getting more tokens...")
+            var expectedVotes = tokens1 + tokens2;
+            t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+
+          function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
+          function() { 
+            console.log("Validation fellow 2 gives fellow1 his tokens back ...")
+            t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
+            t.assertEqualN(tokens2, t.hong.balanceOf(users.fellow2), done, "fellow 2 tokens");
+            t.assertEqualN(tokens2, getQuorumCount(), done, "vote count");
+            t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          }
         ], done);
     });
     
