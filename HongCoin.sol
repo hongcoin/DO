@@ -26,6 +26,9 @@ contract HongConfiguration {
 
     uint public closingTime;
     uint public weiPerInitialHONG = 10**16;
+    string public name = "HONG";
+    string public symbol = "Ħ";
+    uint8 public decimals = 0;
     uint public maxBountyTokens = 2 * MILLION;
     uint public closingTimeExtensionPeriod = 30 days;
     uint public minTokensToCreate = 100 * MILLION;
@@ -321,7 +324,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             doThrow("noTokensToSell");
             return false;
         }
-        
+
         // Sell tokens in batches based on the current price.
         while (remainingWei >= weiPerLatestHONG) {
             uint tokensRequested = remainingWei / weiPerLatestHONG;
@@ -348,7 +351,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
             remainingWei = msg.value - weiAccepted;
             tokensAvailable = tokensAvailableAtCurrentTier();
         }
-        
+
         // the caller will still pay this amount, even though it didn't buy any tokens.
         weiGiven[_tokenHolder] += remainingWei;
 
@@ -626,7 +629,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         if (address(managementFeeWallet) == 0)
             doThrow("managementFeeWallet:0");
     }
-    
+
     function () returns (bool success) {
         if (!isFromManagedAccount()) {
             // We do not accept donation here. Any extra amount sent to us after fund locking process, will be refunded
