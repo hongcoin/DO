@@ -60,7 +60,7 @@ contract TokenInterface is ErrorHandler {
     uint256 public tokensCreated;
 
     function balanceOf(address _owner) constant returns (uint256 balance);
-    function transferMyTokens(address _to, uint256 _amount) returns (bool success);
+    function transfer(address _to, uint256 _amount) returns (bool success);
 
     event evTransfer(address msg_sender, uint msg_value, address indexed _from, address indexed _to, uint256 _amount);
 
@@ -80,7 +80,7 @@ contract Token is TokenInterface {
         return balances[_owner];
     }
 
-    function transferMyTokens(address _to, uint256 _amount) noEther returns (bool success) {
+    function transfer(address _to, uint256 _amount) noEther returns (bool success) {
         if (_amount <= 0) return false;
         if (balances[msg.sender] < _amount) return false;
         if (balances[_to] + _amount < balances[_to]) return false;
@@ -783,7 +783,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         evMgmtInvestProject(msg.sender, msg.value, _projectWallet, _amount, true);
     }
 
-    function transferMyTokens(address _to, uint256 _value) returns (bool success) {
+    function transfer(address _to, uint256 _value) returns (bool success) {
 
         // Update kickoff voting record for the next fiscal year for an address, and the total quorum
         if(currentFiscalYear < 4){
@@ -813,7 +813,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
             votedHarvest[msg.sender] = 0;
         }
 
-        if (isFundLocked && super.transferMyTokens(_to, _value)) {
+        if (isFundLocked && super.transfer(_to, _value)) {
             return true;
         } else {
             if(!isFundLocked){

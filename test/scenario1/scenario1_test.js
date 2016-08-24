@@ -433,7 +433,7 @@ describe('HONG Contract Suite', function() {
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
 
-          function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+          function() { return t.hong.transfer(users.fellow2, tokens1, {from: users.fellow1})},
           function() {
             console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
@@ -441,7 +441,7 @@ describe('HONG Contract Suite', function() {
             t.assertEqualN(0, getQuorumCount(), done, "vote count");
           },
 
-          function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
+          function() { return t.hong.transfer(users.fellow1, tokens1, {from: users.fellow2})},
           function() {
             console.log("Validating fellow 2 transers tokens back to fellow1 ...")
             t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
@@ -466,7 +466,7 @@ describe('HONG Contract Suite', function() {
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
 
-          function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+          function() { return t.hong.transfer(users.fellow2, tokens1, {from: users.fellow1})},
           function() {
             console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
             t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
@@ -484,7 +484,7 @@ describe('HONG Contract Suite', function() {
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
 
-          function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
+          function() { return t.hong.transfer(users.fellow1, tokens1, {from: users.fellow2})},
           function() {
             console.log("Validation fellow 2 gives fellow1 his tokens back ...")
             t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
@@ -627,7 +627,7 @@ describe('HONG Contract Suite', function() {
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
 
-          function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+          function() { return t.hong.transfer(users.fellow2, tokens1, {from: users.fellow1})},
           function() {
             console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
@@ -635,7 +635,7 @@ describe('HONG Contract Suite', function() {
             t.assertEqualN(0, getQuorumCount(), done, "vote count");
           },
 
-          function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
+          function() { return t.hong.transfer(users.fellow1, tokens1, {from: users.fellow2})},
           function() {
             console.log("Validating fellow 2 transers tokens back to fellow1 ...")
             t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
@@ -660,7 +660,7 @@ describe('HONG Contract Suite', function() {
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
 
-          function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+          function() { return t.hong.transfer(users.fellow2, tokens1, {from: users.fellow1})},
           function() {
             console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
             t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
@@ -678,7 +678,7 @@ describe('HONG Contract Suite', function() {
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
 
-          function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
+          function() { return t.hong.transfer(users.fellow1, tokens1, {from: users.fellow2})},
           function() {
             console.log("Validation fellow 2 gives fellow1 his tokens back ...")
             t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");

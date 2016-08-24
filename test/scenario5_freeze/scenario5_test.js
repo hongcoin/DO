@@ -104,7 +104,7 @@ describe(scenario, function() {
         t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
       },
 
-      function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+      function() { return t.hong.transfer(users.fellow2, tokens1, {from: users.fellow1})},
       function() {
         console.log("Validating fellow 1 transers tokens to fellow2, freeze votes are reverted ...")
         t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
@@ -112,7 +112,7 @@ describe(scenario, function() {
         t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
       },
 
-      function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
+      function() { return t.hong.transfer(users.fellow1, tokens1, {from: users.fellow2})},
       function() {
         console.log("Validating fellow 2 transers tokens back to fellow1 ...")
         t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
@@ -137,7 +137,7 @@ describe(scenario, function() {
         t.assertEqual(false, t.hong.isFreezeEnabled(), done, "not frozen");
       },
 
-      function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
+      function() { return t.hong.transfer(users.fellow2, tokens1, {from: users.fellow1})},
       function() {
         console.log("Validating fellow 1 transers tokens to fellow2, freeze votes are reverted ...")
         t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
