@@ -52,7 +52,7 @@ describe('HONG Contract Suite', function() {
       t.createContract(compiled, done, endDate, 1*SECOND, kickoffDelay);
     });
   });
-  
+
   describe("ICO Period", function() {
     /*
     TestCase: check-tokensAvail
@@ -184,7 +184,7 @@ describe('HONG Contract Suite', function() {
     it('check token price @ tier 0', function(done) {
       checkPriceForTokens(done, users.fellow7, 1, 100);
     });
-    
+
     /*
      * Test "round down" feature (not issuing any tokens for extra ether)
      */
@@ -276,7 +276,7 @@ describe('HONG Contract Suite', function() {
           }],
           done);
     });
-    
+
     it ('does not allow new token purchase when fund it locked', function(done) {
       console.log("[does not allow new token purchase when fund it locked]");
       var buyer = users.fellow1;
@@ -284,16 +284,16 @@ describe('HONG Contract Suite', function() {
       var previousTokensCreated = t.hong.tokensCreated();
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "notLocked");
       t.validateTransactions([
-        function() { 
+        function() {
             return t.buyTokens(buyer, 1*eth);
         },
-        function() { 
+        function() {
           t.assertEqualN(previousBalance, t.hong.balanceOf(buyer), done, "buyer tokens");
           t.assertEqualN(previousTokensCreated, t.hong.tokensCreated(), done, "tokens created");
           // TODO: The contract should not accept the ether, but it will until doThrow actaully throws
         }], done);
     });
-    
+
     it('allow bounty tokens to be issued by owner', function(done) {
       console.log("[allow bounty tokens to be issued by owner]");
       var recipeint = users.fellow2;
@@ -303,13 +303,13 @@ describe('HONG Contract Suite', function() {
       done = t.assertEventIsFired(t.hong.evMgmtIssueBountyToken(), done);
       t.validateTransactions([
           function() { return t.hong.mgmtIssueBountyToken(recipeint, bountyTokensToIssue, {from: ownerAddress}); },
-          function() { 
+          function() {
             t.assertEqualN(previousBalance + bountyTokensToIssue, t.hong.balanceOf(recipeint), done, "bounty issued");
             t.assertEqualN(previousBountyTokens + bountyTokensToIssue, t.hong.bountyTokensCreated(), done, "bounty tokens created");
           }
         ], done);
     });
-    
+
     it('DOES NOT allow bounty tokens to be issued by non-owner', function(done) {
       console.log("[DOES NOT allow bounty tokens to be issued by non-owner]");
       var recipeint = users.fellow2;
@@ -317,52 +317,52 @@ describe('HONG Contract Suite', function() {
       var previousBalance = t.asNumber(t.hong.balanceOf(recipeint));
       var previousBountyTokens = t.asNumber(t.hong.bountyTokensCreated());
       var bountyTokensToIssue = 100;
-      
+
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
       t.validateTransactions([
           function() { return t.hong.mgmtIssueBountyToken(recipeint, bountyTokensToIssue, {from: nonOwner}); },
-          function() { 
+          function() {
             t.assertEqualN(previousBalance, t.hong.balanceOf(recipeint), done, "bounty not issued");
             t.assertEqualN(previousBountyTokens, t.hong.bountyTokensCreated(), done, "bounty tokens created");
           }
         ], done);
     });
-    
+
     it('DOES NOT allow more than maxBountyTokens to be issued', function(done) {
       console.log("[DOES NOT allow more than maxBountyTokens to be issued]");
       var recipeint = users.fellow2;
       var previousBalance = t.asNumber(t.hong.balanceOf(recipeint));
       var previousBountyTokens = t.asNumber(t.hong.bountyTokensCreated());
       var bountyTokensToIssue = 2000000 - previousBountyTokens + 1; // one too many
-      
+
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "hitMaxBounty");
       t.validateTransactions([
           function() { return t.hong.mgmtIssueBountyToken(recipeint, bountyTokensToIssue, {from: ownerAddress}); },
-          function() { 
+          function() {
             t.assertEqualN(previousBalance, t.hong.balanceOf(recipeint), done, "bounty not issued");
             t.assertEqualN(previousBountyTokens, t.hong.bountyTokensCreated(), done, "bounty tokens created");
           }
         ], done);
     });
-    
+
     it('allows maxBountyTokens to be issued', function(done) {
       console.log("[allows maxBountyTokens to be issued]");
       var recipeint = users.fellow2;
       var previousBalance = t.asNumber(t.hong.balanceOf(recipeint));
       var previousBountyTokens = t.asNumber(t.hong.bountyTokensCreated());
       var bountyTokensToIssue = 2000000 - previousBountyTokens; // just right
-      
+
       done = t.assertEventIsFired(t.hong.evMgmtIssueBountyToken(), done);
       t.validateTransactions([
           function() { return t.hong.mgmtIssueBountyToken(recipeint, bountyTokensToIssue, {from: ownerAddress}); },
-          function() { 
+          function() {
             t.assertEqualN(previousBalance + bountyTokensToIssue, t.hong.balanceOf(recipeint), done, "bounty issued");
             t.assertEqualN(previousBountyTokens + bountyTokensToIssue, t.hong.bountyTokensCreated(), done, "bounty tokens created");
           }
         ], done);
     });
   });
-  
+
   describe("mgmt only", function() {
     it ('does not allow others to call mgmtDistribute', function(done) {
       console.log('[does not allow others to call mgmtDistribute]');
@@ -391,13 +391,13 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
   });
-  
+
   describe("kick off voting", function() {
     it ('does not allow non-token holder to vote kickoff', function(done) {
       console.log('[does not allow non-token holder to voteKickoff]');
       var fiscalYear = t.hong.currentFiscalYear()+1;
       var nonTokenHolder = users.fellow6;
-      
+
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyTokenHolders");
       t.validateTransactions([
           function() { return t.hong.voteToKickoffFund({from: nonTokenHolder})},
@@ -406,18 +406,18 @@ describe('HONG Contract Suite', function() {
           }
         ], done);
     });
-    
+
     it ('allows token holder to vote kickoff', function(done) {
       console.log('[allows token holder to vote kickoff]');
       var fiscalYear = t.hong.currentFiscalYear()+1;
-      
+
       var tokens1 = t.asNumber(t.hong.balanceOf(users.fellow1));
       var tokens2 = t.asNumber(t.hong.balanceOf(users.fellow2));
-      
+
       var getQuorumCount = function() { return t.hong.supportKickoffQuorum(fiscalYear) };
       var wasVoteSuccessful = function() { return t.hong.isInitialKickoffEnabled()};
       var vote = function(params) { return t.hong.voteToKickoffFund(params) };
-      
+
       done = t.logEventsToConsole(done);
       t.validateTransactions([
           function() { return vote({from: users.fellow1})},
@@ -425,7 +425,7 @@ describe('HONG Contract Suite', function() {
             t.assertEqualN(tokens1, getQuorumCount(), done, "voted quorum count");
             t.assertEqual(false, wasVoteSuccessful() , done, "not successful");
           },
-          
+
           // verify additional vote has no effect
           function() { return vote({from: users.fellow1})},
           function() {
@@ -434,58 +434,58 @@ describe('HONG Contract Suite', function() {
           },
 
           function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
-          function() { 
+          function() {
             console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
             t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
             t.assertEqualN(0, getQuorumCount(), done, "vote count");
           },
-          
+
           function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
-          function() { 
+          function() {
             console.log("Validating fellow 2 transers tokens back to fellow1 ...")
             t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
             t.assertEqualN(0, getQuorumCount(), done, "vote count");
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
-          
+
           function() { return vote({from: users.fellow1})},
-          function() { 
+          function() {
             console.log("Validating fellow 1 votes again after getting tokens back ...")
             var expectedVotes = tokens1;
             t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
-          
+
           /* Fellow 2 votes to kickoff */
           function() { return vote({from: users.fellow2})},
-          function() { 
+          function() {
             console.log("Validating fellow 2 voted...")
             var expectedVotes = tokens1 + tokens2;
             t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
-          
+
           function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
-          function() { 
+          function() {
             console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
             t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
             t.assertEqualN(tokens1 + tokens2, t.hong.balanceOf(users.fellow2), done, "fellow 2 tokens");
             t.assertEqualN(tokens2, getQuorumCount(), done, "vote count");
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
-          
+
           /* Fellow 2 votes to kickoff after getting more tokens  */
           function() { return vote({from: users.fellow2})},
-          function() { 
+          function() {
             console.log("Validating fellow 2 votes again after getting more tokens...")
             var expectedVotes = tokens1 + tokens2;
             t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
-          
+
           function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
-          function() { 
+          function() {
             console.log("Validation fellow 2 gives fellow1 his tokens back ...")
             t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
             t.assertEqualN(tokens2, t.hong.balanceOf(users.fellow2), done, "fellow 2 tokens");
@@ -494,25 +494,25 @@ describe('HONG Contract Suite', function() {
           }
         ], done);
     });
-    
+
     it ('does kickoff when quorum is reached', function(done){
       console.log('[does kickoff when quorum is reached]');
       var tokenHolder = users.fellow5;
       var previousHongBalance = sandbox.web3.toBigNumber(t.hong.actualBalance());
       var previousExtraBalance = sandbox.web3.toBigNumber(t.getWalletBalance(t.hong.extraBalanceWallet()));
       var previousMgmtBodyBalance = sandbox.web3.toBigNumber(t.getWalletBalance(ownerAddress));
-      
+
       var contractBalance = previousExtraBalance.plus(previousHongBalance);
       var mgmtFeePercentage = t.asNumber(t.hong.mgmtFeePercentage());
       var totalMgmtFee =  contractBalance.times(mgmtFeePercentage).dividedBy(100).floor();
       var expectedMgmtFeeBalance = totalMgmtFee.times(6).dividedBy(8).floor();
       var expectedMgmtBodyPayment = totalMgmtFee.times(2).dividedBy(8).floor();
       var expectedMgmtBodyBalance = previousMgmtBodyBalance.plus(expectedMgmtBodyPayment);
-      
+
       done = t.logEventsToConsole(done);
       done = t.logAddressMessagesToConsole(done, t.hong.managementFeeWallet());
       t.validateTransactions([
-          function() { 
+          function() {
             return t.hong.voteToKickoffFund({from: tokenHolder});
           },
           function() {
@@ -524,7 +524,7 @@ describe('HONG Contract Suite', function() {
           }
         ], done);
     });
-    
+
     it ('does not allow harvest in FY1', function(done) {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "currentFiscalYear<4");
@@ -535,7 +535,7 @@ describe('HONG Contract Suite', function() {
         }
         ], done);
     });
-    
+
     it ('can kickoff FY2', function(done) {
       t.sleepFor(kickoffDelay)
       done = t.logEventsToConsole(done);
@@ -548,7 +548,7 @@ describe('HONG Contract Suite', function() {
         },
         ], done);
     });
-    
+
     it ('can kickoff FY3', function(done) {
       t.sleepFor(kickoffDelay)
       done = t.logEventsToConsole(done);
@@ -561,7 +561,7 @@ describe('HONG Contract Suite', function() {
         },
         ], done);
     });
-    
+
     it ('can kickoff FY4', function(done) {
       t.sleepFor(kickoffDelay)
       done = t.logEventsToConsole(done);
@@ -574,7 +574,7 @@ describe('HONG Contract Suite', function() {
         },
         ], done);
     });
-    
+
     it ('cannot kickoff FY5', function(done) {
       t.sleepFor(kickoffDelay)
       done = t.logEventsToConsole(done);
@@ -588,11 +588,11 @@ describe('HONG Contract Suite', function() {
         },
         ], done);
     });
-    
+
     it ('does not allow non-token holder to vote harvest', function(done) {
       console.log('[does not allow non-token holder to vote harvest]');
       var nonTokenHolder = users.fellow6;
-      
+
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyTokenHolders");
       t.validateTransactions([
           function() { return t.hong.voteToHarvestFund({from: nonTokenHolder})},
@@ -601,16 +601,16 @@ describe('HONG Contract Suite', function() {
           }
         ], done);
     });
-    
+
     it ('allows token holders to harvest in FY4 and handles token transfer', function(done) {
       console.log('[allows token holder to vote harvest and handles token transfer]');
       var tokens1 = t.asNumber(t.hong.balanceOf(users.fellow1));
       var tokens2 = t.asNumber(t.hong.balanceOf(users.fellow2));
-      
+
       var getQuorumCount = function() { return t.hong.supportHarvestQuorum() };
       var wasVoteSuccessful = function() { return t.hong.isHarvestEnabled()};
       var vote = function(params) { return t.hong.voteToHarvestFund(params) };
-      
+
       done = t.logEventsToConsole(done);
       t.validateTransactions([
           function() { return vote({from: users.fellow1})},
@@ -618,7 +618,7 @@ describe('HONG Contract Suite', function() {
             t.assertEqualN(tokens1, getQuorumCount(), done, "voted quorum count");
             t.assertEqual(false, wasVoteSuccessful() , done, "not successful");
           },
-          
+
           // verify additional vote has no effect
           function() { return vote({from: users.fellow1})},
           function() {
@@ -628,50 +628,50 @@ describe('HONG Contract Suite', function() {
           },
 
           function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
-          function() { 
+          function() {
             console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
             t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
             t.assertEqualN(0, getQuorumCount(), done, "vote count");
           },
-          
+
           function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
-          function() { 
+          function() {
             console.log("Validating fellow 2 transers tokens back to fellow1 ...")
             t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
             t.assertEqualN(0, getQuorumCount(), done, "vote count");
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
-          
+
           function() { return vote({from: users.fellow1})},
-          function() { 
+          function() {
             console.log("Validating fellow 1 votes again after getting tokens back ...")
             var expectedVotes = tokens1;
             t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
-          
+
           /* Fellow 2 votes to harvest */
           function() { return vote({from: users.fellow2})},
-          function() { 
+          function() {
             console.log("Validating fellow 2 voted...")
             var expectedVotes = tokens1 + tokens2;
             t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
-          
+
           function() { return t.hong.transferMyTokens(users.fellow2, tokens1, {from: users.fellow1})},
-          function() { 
+          function() {
             console.log("Validating fellow 1 transers tokens to fellow2, votes are reverted ...")
             t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
             t.assertEqualN(tokens1 + tokens2, t.hong.balanceOf(users.fellow2), done, "fellow 2 tokens");
             t.assertEqualN(tokens2, getQuorumCount(), done, "vote count");
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
           },
-          
+
           /* Fellow 2 votes to harvest after getting more tokens  */
           function() { return vote({from: users.fellow2})},
-          function() { 
+          function() {
             console.log("Validating fellow 2 votes again after getting more tokens...")
             var expectedVotes = tokens1 + tokens2;
             t.assertEqualN(expectedVotes, getQuorumCount(), done, "vote count");
@@ -679,7 +679,7 @@ describe('HONG Contract Suite', function() {
           },
 
           function() { return t.hong.transferMyTokens(users.fellow1, tokens1, {from: users.fellow2})},
-          function() { 
+          function() {
             console.log("Validation fellow 2 gives fellow1 his tokens back ...")
             t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
             t.assertEqualN(tokens2, t.hong.balanceOf(users.fellow2), done, "fellow 2 tokens");
@@ -688,7 +688,7 @@ describe('HONG Contract Suite', function() {
           }
         ], done);
     });
-    
+
     it ('does not allow mggmtBody to call mgmtDistribute before harvest is enabled', function(done) {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyHarvestEnabled");
@@ -699,7 +699,7 @@ describe('HONG Contract Suite', function() {
         }
         ], done);
     });
-    
+
     it ('triggers harvest when quorum is reached', function(done) {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFired(t.hong.evHarvest(), done);
@@ -707,17 +707,17 @@ describe('HONG Contract Suite', function() {
       t.validateTransactions([
         function() { return t.hong.voteToHarvestFund({from: users.fellow2})},
         function() { },
-        
+
         function() { return t.hong.voteToHarvestFund({from: users.fellow3})},
         function() { },
-        
+
         function() { return t.hong.voteToHarvestFund({from: users.fellow5})},
-        function() { 
-          t.assertEqual(true, t.hong.isHarvestEnabled(), done, "harvest enabled");       
+        function() {
+          t.assertEqual(true, t.hong.isHarvestEnabled(), done, "harvest enabled");
         },
         ], done);
     });
-    
+
     it ('does not allow non-owner to call mgmtDistribut', function(done) {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
@@ -728,23 +728,23 @@ describe('HONG Contract Suite', function() {
         }
         ], done);
     });
-    
+
     it ('allows mgmtDistribute by mgmtBody after harvest is enabled', function(done) {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFired(t.hong.evMgmtDistributed(), done);
-      
+
       var hongBalance = t.asBigNumber(t.hong.actualBalance());
       var extraBalance = t.asBigNumber(t.getWalletBalance(t.hong.extraBalanceWallet()));
       var mgmtFeeWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.managementFeeWallet()));
-      var returnWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.returnWallet())); 
-      var rewardWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.rewardWallet())); 
-      
+      var returnWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.returnWallet()));
+      var rewardWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.rewardWallet()));
+
       var totalFunds = returnWalletBalance
                         .plus(hongBalance)
                         .plus(extraBalance)
                         .plus(mgmtFeeWalletBalance)
                         .plus(rewardWalletBalance);
-                        
+
       var mgmtRewardFraction = t.hong.mgmtRewardPercentage() / 100;
       var expectedMgmtReward = totalFunds.times(mgmtRewardFraction).floor();
       var expectedReturnWalletBalance = totalFunds.minus(expectedMgmtReward);
@@ -757,11 +757,11 @@ describe('HONG Contract Suite', function() {
         }
         ], done);
     });
-    
+
   });
-  
-  
-  
+
+
+
   function checkPriceForTokens(done, buyer, ethToSend, expectedTokens) {
     console.log("[checking token price, expecting " + ethToSend + " for " + expectedTokens + " tokens]");
     done = t.logEventsToConsole(done);
