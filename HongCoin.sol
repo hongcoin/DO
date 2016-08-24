@@ -267,7 +267,6 @@ contract GovernanceInterface is ErrorHandler, HongConfiguration {
     uint public currentFiscalYear;
     uint public lastKickoffDate;
     mapping (uint => bool) public isKickoffEnabled;
-    bool public isInitialKickoffEnabled;
     bool public isFreezeEnabled;
     bool public isHarvestEnabled;
     bool public isDistributionInProgress;
@@ -655,23 +654,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
         // Best case is they get it wrong and we throw, worst case is the get it wrong and there's some exploit
         uint _fiscal = currentFiscalYear + 1;
 
-        if(!isInitialKickoffEnabled){  // if there is no kickoff() enabled before
-            // input of _fiscal have to be the first year
-            // available range of _fiscal is [1]
-            if(_fiscal == 1){
-                // accept voting
-            }else{
-                doThrow("kickOff:noInitialKickoff");
-                return;
-            }
+        if(!isKickoffEnabled[1]){  // if the first fiscal year is not kicked off yet
+            // accept voting
 
         }else if(currentFiscalYear <= 3){  // if there was any kickoff() enabled before already
-            // available range of _fiscal is [2,3,4]
-            // input of _fiscal have to be the next year
-            if(_fiscal != currentFiscalYear + 1){
-                doThrow("kickOff:notNextYear");
-                return;
-            }
 
             if(lastKickoffDate + lastKickoffDateBuffer < now){ // 2 months from the end of the fiscal year
                 // accept voting
@@ -695,8 +681,6 @@ contract HONG is HONGInterface, Token, TokenCreation {
         uint threshold = (kickoffQuorumPercent*(tokensCreated + bountyTokensCreated)) / 100;
         if(supportKickoffQuorum[_fiscal] > threshold) {
             if(_fiscal == 1){
-                isInitialKickoffEnabled = true;
-
                 // transfer fund in extraBalance to main account
                 extraBalanceWallet.returnBalanceToMainAccount();
 
