@@ -45,12 +45,12 @@ contract HongConfiguration {
 }
 
 contract ErrorHandler {
-    // uint public errorCount = 0;
     event evRecord(address msg_sender, uint msg_value, string eventType, string message);
     function doThrow(string message) internal {
-        // errorCount++;
         evRecord(msg.sender, msg.value, "Error", message);
-        // throw;
+        if(true){ // TODO some configurable parameter to switch whether it is in testing mode
+            throw;
+        }
     }
 }
 
