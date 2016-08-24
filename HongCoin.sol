@@ -22,18 +22,16 @@ along with the HONG.  If not, see <http://www.gnu.org/licenses/>.
  * Parent contract that contains all of the configurable parameters of the main contract.
  */
 contract HongConfiguration {
-    uint constant MILLION = 10**6;
-
     uint public closingTime;
     uint public weiPerInitialHONG = 10**16;
     string public name = "HONG";
     string public symbol = "Ħ";
     uint8 public decimals = 0;
-    uint public maxBountyTokens = 2 * MILLION;
+    uint public maxBountyTokens = 2 * (10**6);
     uint public closingTimeExtensionPeriod = 30 days;
-    uint public minTokensToCreate = 100 * MILLION;
-    uint public maxTokensToCreate = 250 * MILLION;
-    uint public tokensPerTier = 50 * MILLION;
+    uint public minTokensToCreate = 100 * (10**6);
+    uint public maxTokensToCreate = 250 * (10**6);
+    uint public tokensPerTier = 50 * (10**6);
     uint public lastKickoffDateBuffer = 304 days;
 
     uint public mgmtRewardPercentage = 20;
@@ -46,9 +44,9 @@ contract HongConfiguration {
 
 contract ErrorHandler {
     bool public isInTestMode = false;
-    event evRecord(address msg_sender, uint msg_value, string eventType, string message);
+    event evRecord(address msg_sender, uint msg_value, string message);
     function doThrow(string message) internal {
-        evRecord(msg.sender, msg.value, "Error", message);
+        evRecord(msg.sender, msg.value, message);
         if(!isInTestMode){
             throw;
         }
@@ -269,7 +267,6 @@ contract GovernanceInterface is ErrorHandler, HongConfiguration {
     uint public currentFiscalYear;
     uint public lastKickoffDate;
     mapping (uint => bool) public isKickoffEnabled;
-    bool public isInitialKickoffEnabled;
     bool public isFreezeEnabled;
     bool public isHarvestEnabled;
     bool public isDistributionInProgress;
@@ -637,7 +634,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
             return createTokenProxy(msg.sender);
         }
         else {
-            evRecord(msg.sender, msg.value, "log", "Recevied ether from ManagedAccount");
+            evRecord(msg.sender, msg.value, "Recevied ether from ManagedAccount");
             return true;
         }
     }
@@ -657,23 +654,10 @@ contract HONG is HONGInterface, Token, TokenCreation {
         // Best case is they get it wrong and we throw, worst case is the get it wrong and there's some exploit
         uint _fiscal = currentFiscalYear + 1;
 
-        if(!isInitialKickoffEnabled){  // if there is no kickoff() enabled before
-            // input of _fiscal have to be the first year
-            // available range of _fiscal is [1]
-            if(_fiscal == 1){
-                // accept voting
-            }else{
-                doThrow("kickOff:noInitialKickoff");
-                return;
-            }
+        if(!isKickoffEnabled[1]){  // if the first fiscal year is not kicked off yet
+            // accept voting
 
         }else if(currentFiscalYear <= 3){  // if there was any kickoff() enabled before already
-            // available range of _fiscal is [2,3,4]
-            // input of _fiscal have to be the next year
-            if(_fiscal != currentFiscalYear + 1){
-                doThrow("kickOff:notNextYear");
-                return;
-            }
 
             if(lastKickoffDate + lastKickoffDateBuffer < now){ // 2 months from the end of the fiscal year
                 // accept voting
@@ -697,8 +681,6 @@ contract HONG is HONGInterface, Token, TokenCreation {
         uint threshold = (kickoffQuorumPercent*(tokensCreated + bountyTokensCreated)) / 100;
         if(supportKickoffQuorum[_fiscal] > threshold) {
             if(_fiscal == 1){
-                isInitialKickoffEnabled = true;
-
                 // transfer fund in extraBalance to main account
                 extraBalanceWallet.returnBalanceToMainAccount();
 

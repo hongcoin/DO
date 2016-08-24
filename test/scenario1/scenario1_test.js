@@ -415,7 +415,7 @@ describe('HONG Contract Suite', function() {
       var tokens2 = t.asNumber(t.hong.balanceOf(users.fellow2));
 
       var getQuorumCount = function() { return t.hong.supportKickoffQuorum(fiscalYear) };
-      var wasVoteSuccessful = function() { return t.hong.isInitialKickoffEnabled()};
+      var wasVoteSuccessful = function() { return t.hong.isKickoffEnabled(fiscalYear)};
       var vote = function(params) { return t.hong.voteToKickoffFund(params) };
 
       done = t.logEventsToConsole(done);
@@ -508,6 +508,7 @@ describe('HONG Contract Suite', function() {
       var expectedMgmtFeeBalance = totalMgmtFee.times(6).dividedBy(8).floor();
       var expectedMgmtBodyPayment = totalMgmtFee.times(2).dividedBy(8).floor();
       var expectedMgmtBodyBalance = previousMgmtBodyBalance.plus(expectedMgmtBodyPayment);
+      var fiscalYear = t.hong.currentFiscalYear()+1;
 
       done = t.logEventsToConsole(done);
       done = t.logAddressMessagesToConsole(done, t.hong.managementFeeWallet());
@@ -516,7 +517,7 @@ describe('HONG Contract Suite', function() {
             return t.hong.voteToKickoffFund({from: tokenHolder});
           },
           function() {
-            t.assertEqual(true, t.hong.isInitialKickoffEnabled(), done, "kickoff enabled");
+            t.assertEqual(true, t.hong.isKickoffEnabled(fiscalYear), done, "kickoff enabled");
             t.assertEqualN(0, t.getWalletBalance(t.hong.extraBalanceWallet()), done, "extra balance");
             t.assertEqualN(1, t.hong.currentFiscalYear(), done, "fiscal year");
             t.assertEqualN(expectedMgmtFeeBalance, t.getWalletBalance(t.hong.managementFeeWallet()), done, "mgmt fee");
@@ -524,20 +525,20 @@ describe('HONG Contract Suite', function() {
           }
         ], done);
     });
-    
+
     it ('allows mgmt to invest in a project', function(done){
       var testAmount = 100;
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFired(t.hong.evMgmtInvestProject(), done, function(event) {
         return event.result && event._amount == testAmount;
       });
-      
+
       var fellow7Balance = t.asBigNumber(t.getWalletBalance(users.fellow7));
       var hongBalance = t.asBigNumber(t.hong.actualBalance());
-      
+
       var expectedUserBalance = fellow7Balance.add(testAmount);
       var expectedHongBalance = hongBalance.minus(testAmount);
-      
+
       t.validateTransactions([
         function(){ return t.hong.mgmtInvestProject(users.fellow7, testAmount);},
         function(){
@@ -548,7 +549,7 @@ describe('HONG Contract Suite', function() {
         }
         ], done);
     });
-    
+
     it ('does not allow harvest in FY1', function(done) {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "currentFiscalYear<4");

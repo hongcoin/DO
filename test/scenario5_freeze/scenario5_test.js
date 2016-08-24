@@ -60,10 +60,11 @@ describe(scenario, function() {
 
       function() { return t.hong.voteToKickoffFund({from: users.fellow5});},
       function() {
-        t.assertEqual(true, t.hong.isInitialKickoffEnabled(), done, "kickoff enable");
+        var fiscalYear = t.hong.currentFiscalYear()+1;
+        t.assertEqual(true, t.hong.isKickoffEnabled(fiscalYear), done, "kickoff enable");
       }
-      ],
-      done);
+    ],
+    done);
   });
 
   it('freezes the fund when quorum is reached', function(done) {
