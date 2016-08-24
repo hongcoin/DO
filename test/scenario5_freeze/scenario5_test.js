@@ -60,7 +60,7 @@ describe(scenario, function() {
 
       function() { return t.hong.voteToKickoffFund({from: users.fellow5});},
       function() {
-        var fiscalYear = t.hong.currentFiscalYear()+1;
+        var fiscalYear = t.hong.currentFiscalYear();
         t.assertEqual(true, t.hong.isKickoffEnabled(fiscalYear), done, "kickoff enable");
       }
     ],
