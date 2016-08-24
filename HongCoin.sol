@@ -45,10 +45,11 @@ contract HongConfiguration {
 }
 
 contract ErrorHandler {
+    bool public isInTestMode = false;
     event evRecord(address msg_sender, uint msg_value, string eventType, string message);
     function doThrow(string message) internal {
         evRecord(msg.sender, msg.value, "Error", message);
-        if(true){ // TODO some configurable parameter to switch whether it is in testing mode
+        if(!isInTestMode){
             throw;
         }
     }
@@ -602,7 +603,8 @@ contract HONG is HONGInterface, Token, TokenCreation {
         uint _lastKickoffDateBuffer,
         uint _minTokensToCreate,
         uint _maxTokensToCreate,
-        uint _tokensPerTier
+        uint _tokensPerTier,
+        bool _isInTestMode
     ) TokenCreation(_managementBodyAddress, _closingTime) {
 
         managementBodyAddress = _managementBodyAddress;
@@ -612,6 +614,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         minTokensToCreate = _minTokensToCreate;
         maxTokensToCreate = _maxTokensToCreate;
         tokensPerTier = _tokensPerTier;
+        isInTestMode = _isInTestMode;
 
         returnWallet = new ReturnWallet(managementBodyAddress);
         rewardWallet = new RewardWallet(address(returnWallet));

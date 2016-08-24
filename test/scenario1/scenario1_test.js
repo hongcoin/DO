@@ -524,7 +524,31 @@ describe('HONG Contract Suite', function() {
           }
         ], done);
     });
-
+    
+    it ('allows mgmt to invest in a project', function(done){
+      var testAmount = 100;
+      done = t.logEventsToConsole(done);
+      done = t.assertEventIsFired(t.hong.evMgmtInvestProject(), done, function(event) {
+        return event.result && event._amount == testAmount;
+      });
+      
+      var fellow7Balance = t.asBigNumber(t.getWalletBalance(users.fellow7));
+      var hongBalance = t.asBigNumber(t.hong.actualBalance());
+      
+      var expectedUserBalance = fellow7Balance.add(testAmount);
+      var expectedHongBalance = hongBalance.minus(testAmount);
+      
+      t.validateTransactions([
+        function(){ return t.hong.mgmtInvestProject(users.fellow7, testAmount);},
+        function(){
+          var actualUserBalance = t.asBigNumber(t.getWalletBalance(users.fellow7));
+          var actualHongBalance = t.asBigNumber(t.hong.actualBalance());
+          t.assertEqualB(expectedUserBalance, actualUserBalance, done, "expected user balance");
+          t.assertEqualB(expectedHongBalance, actualHongBalance, done, "expected hong balance");
+        }
+        ], done);
+    });
+    
     it ('does not allow harvest in FY1', function(done) {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "currentFiscalYear<4");
