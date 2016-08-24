@@ -22,6 +22,7 @@ module.exports = {
           _closingTimeExtensionPeriod,
           _lastKickoffDateBuffer,
           this.minTokensToCreate, this.maxTokensToCreate, this.tokensPerTier,
+          true,
           {
             /* contract creator */
             from: this.ownerAddress,
