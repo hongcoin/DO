@@ -395,8 +395,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         var tmpTaxPaidBySender = taxPaid[msg.sender];
         var tmpSenderBalance = balances[msg.sender];
 
-        var transactionCost = 0; // TODO possibly there is some transaction cost for the refund
-        var amountToRefund = tmpWeiGiven - transactionCost;
+        var amountToRefund = tmpWeiGiven;
 
         // 3: state changes.
         balances[msg.sender] = 0;
