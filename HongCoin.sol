@@ -44,9 +44,9 @@ contract HongConfiguration {
 
 contract ErrorHandler {
     bool public isInTestMode = false;
-    event evRecord(address msg_sender, uint msg_value, string eventType, string message);
+    event evRecord(address msg_sender, uint msg_value, string message);
     function doThrow(string message) internal {
-        evRecord(msg.sender, msg.value, "Error", message);
+        evRecord(msg.sender, msg.value, message);
         if(!isInTestMode){
             throw;
         }
@@ -634,7 +634,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
             return createTokenProxy(msg.sender);
         }
         else {
-            evRecord(msg.sender, msg.value, "log", "Recevied ether from ManagedAccount");
+            evRecord(msg.sender, msg.value, "Recevied ether from ManagedAccount");
             return true;
         }
     }
