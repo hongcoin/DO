@@ -4,7 +4,7 @@ module.exports = {
   doLog: function(s) {
       console.log(s);
   },
-  
+
   sandbox: null,
   hong: null,
   ownerAddress: null,
@@ -13,7 +13,7 @@ module.exports = {
   minTokensToCreate: 100 * MILLION,
   maxTokensToCreate: 250 * MILLION,
   tokensPerTier: 50 * MILLION,
-  
+
   createContract : function (compiled, done, _endDate, _closingTimeExtensionPeriod, _lastKickoffDateBuffer) {
       var that = this;
       this.sandbox.web3.eth.contract(JSON.parse(compiled.contracts['HONG'].interface)).new(
@@ -25,7 +25,7 @@ module.exports = {
           {
             /* contract creator */
             from: this.ownerAddress,
-  
+
             /* contract bytecode */
             data: '0x' + compiled.contracts['HONG'].bytecode
           },
@@ -57,22 +57,22 @@ module.exports = {
 
   sleepUntil : function( deadline ){
     console.log("Sleeping for " + (deadline - this.now()) + "s");
-    while(this.now() < deadline){ /* do nothing */ } 
+    while(this.now() < deadline){ /* do nothing */ }
   },
-  
+
   // Return the time, but in seconds since epoch (since that's what ethereum uses)
   now : function() {
     return new Date().getTime()/1000;
   },
-  
+
   getWalletBalance : function(address) {
     return this.sandbox.web3.eth.getBalance(address);
   },
-  
-  buyTokens : function (buyer, wei) {  
+
+  buyTokens : function (buyer, wei) {
     return this.sandbox.web3.eth.sendTransaction({from: buyer, to: this.hong.address, gas: 900000, value: wei});
   },
-    
+
   logEventsToConsole : function (done) {
     var filter = this.hong.evRecord();
     filter.watch(function(err, val) {
@@ -105,7 +105,7 @@ module.exports = {
     };
     return newDone;
   },
-  
+
   assertEqualN: function (expected, actual, done, msg) {
     this.assertEqual(this.asNumber(expected), this.asNumber(actual), done, msg);
   },
@@ -172,7 +172,7 @@ module.exports = {
       }
     };
   },
-  
+
   purchaseAllTokensInTier : function (done, buyer, expectedFundLocked, extraTokens) {
     console.log("Purchasing the rest of the tokens in current tier, currentTier: " + this.hong.getCurrentTier());
     done = this.logEventsToConsole(done);
@@ -244,7 +244,7 @@ module.exports = {
           that.validateTransactions(txAndValidation, done);
       });
   },
-  
+
   printBalances : function() {
     console.log("-------");
     console.log("Hong: " + this.hong.actualBalance());

@@ -14,27 +14,27 @@ describe('Scenario 2: HONG Contract Suite', function() {
   this.timeout(60000);
   sandbox = new Sandbox('http://localhost:8552');
   compiled = sc.compile(helper, "HongCoin.sol");
-  
+
   before(function(done) {
-    sandbox.start(__dirname + '/../ethereum.json', done);  
+    sandbox.start(__dirname + '/../ethereum.json', done);
   });
 
   it('test-deploy', function(done) {
     var endDate = Date.now() / 1000 + timeTillClosing;
     eth = sandbox.web3.toWei(1, 'ether');
     console.log(' [test-deploy]');
-    
+
     t.sandbox = sandbox;
     t.ownerAddress = users.fellow1;
     t.helper = helper;
     t.createContract(compiled, done, endDate);
   });
-  
+
   it('locks fund if minTokens is reached before closingTime', function(done) {
-    
+
     t.validateTransactions([
       function() { return t.buyTokens(users.fellow1, 200000*eth)},
-      function() { 
+      function() {
         console.log(t.hong.tokensCreated());
         t.assertEqual(false, t.hong.isMinTokensReached(), done, "min tokens reached")
       },
@@ -56,7 +56,7 @@ describe('Scenario 2: HONG Contract Suite', function() {
         t.assertEqual(true, t.hong.isFundLocked(), done, "is fund locked");
       }], done);
   });
-    
+
   after(function(done) {
     console.log("Shutting down sandbox");
     sandbox.stop(done);

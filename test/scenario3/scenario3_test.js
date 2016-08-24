@@ -35,12 +35,12 @@ describe('Scenario 3: HONG Contract Suite', function() {
     t.helper = helper;
     t.createContract(compiled, done, endDate, extensionPeriod, lastKickoffDateBuffer);
   });
-  
+
   it('locks fund if minTokens is reached after closingTime but before extensions period', function(done) {
     var secondClosingTime = t.asNumber(t.hong.closingTime()) + t.asNumber(t.hong.closingTimeExtensionPeriod());
     t.validateTransactions([
       function() { return t.buyTokens(users.fellow1, ethToWei(200000))},
-      function() { 
+      function() {
         console.log(t.hong.tokensCreated());
         t.assertEqual(false, t.hong.isMinTokensReached(), done, "min tokens reached")
       },
@@ -66,7 +66,7 @@ describe('Scenario 3: HONG Contract Suite', function() {
       },
       function() {
         t.sleepUntil(secondClosingTime);
-        return t.buyTokens(users.fellow5, 1*eth); 
+        return t.buyTokens(users.fellow5, 1*eth);
       },
       function() {
         t.assertEqual(false, t.hong.isMaxTokensReached(), done, "max tokens reached");
@@ -75,7 +75,7 @@ describe('Scenario 3: HONG Contract Suite', function() {
       }
       ], done);
   });
-    
+
   after(function(done) {
     console.log("Shutting down sandbox");
     sandbox.stop(done);

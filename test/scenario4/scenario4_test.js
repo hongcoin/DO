@@ -38,27 +38,27 @@ describe('Scenario 4: MinTokens never reached', function() {
     t.helper = helper;
     t.createContract(compiled, done, endDate, extensionPeriod, lastKickoffDateBuffer);
   });
-  
+
   it('locks fund if minTokens is reached after closingTime but before extensions period', function(done) {
     console.log(' [locks fund if minTokens is reached after closingTime but before extensions period]');
     var secondClosingTime = t.asNumber(t.hong.closingTime()) + t.asNumber(t.hong.closingTimeExtensionPeriod());
     done = t.logEventsToConsole(done);
     done = t.assertEventIsFired(t.hong.evReleaseFund(), done);
-    
+
     var purchase1 = sandbox.web3.toBigNumber(ethToWei(10));
     var purchase2 = sandbox.web3.toBigNumber(ethToWei(200000));
     var purchase3 = sandbox.web3.toBigNumber(ethToWei(2));
-    
+
     fellow1OriginalBalance = t.asBigNumber(t.getWalletBalance(users.fellow1));
     fellow4OriginalBalance = t.asBigNumber(t.getWalletBalance(users.fellow4));
     fellow5OriginalBalance = t.asBigNumber(t.getWalletBalance(users.fellow5));
-    
+
     t.validateTransactions([
       function() { return t.buyTokens(users.fellow1, purchase1)},
-      function() { 
+      function() {
         t.assertEqual(false, t.hong.isMinTokensReached(), done, "min tokens reached");
       },
-      
+
       function() {
         t.sleepUntil(t.hong.closingTime());
         return t.buyTokens(users.fellow4, purchase2)
@@ -68,7 +68,7 @@ describe('Scenario 4: MinTokens never reached', function() {
       function() {
         // after the second closing time, buy some tokens to trigger the check, but not enough to reach minTokens
         t.sleepUntil(secondClosingTime);
-        return t.buyTokens(users.fellow5, purchase3) 
+        return t.buyTokens(users.fellow5, purchase3)
       },
       function() {
         t.assertEqual(false, t.hong.isMinTokensReached(), done, "min tokens reached (3)");
@@ -76,7 +76,7 @@ describe('Scenario 4: MinTokens never reached', function() {
       }
       ], done);
   });
-  
+
   it('no more tokens will be sold once the fund is released', function(done) {
     console.log(' [no more tokens will be sold once the fund is released]');
     var buyer = users.fellow7;
@@ -89,14 +89,14 @@ describe('Scenario 4: MinTokens never reached', function() {
       }
       ], done);
   });
-    
+
   it('allows users to get a refund', function(done) {
     done = t.logEventsToConsole(done);
-    
+
     t.assertTrue(t.asNumber(t.hong.balanceOf(users.fellow1)) > 0, done, "fellow1 has tokens");
     t.assertTrue(t.asNumber(t.hong.balanceOf(users.fellow4)) > 0, done, "fellow4 has tokens");
     t.assertTrue(t.asNumber(t.hong.balanceOf(users.fellow5)) > 0, done, "fellow5 has tokens");
-    
+
     t.validateTransactions([
       function() { return t.hong.refundMyIcoInvestment({from : users.fellow1}); },
       function() {
@@ -104,23 +104,23 @@ describe('Scenario 4: MinTokens never reached', function() {
         t.assertEqualB(fellow1OriginalBalance, newBalance, done, "fellow1 balance");
         t.assertEqualN(0, t.hong.balanceOf(users.fellow1), done, "fellow1 token count");
       },
-      
+
       function() { return t.hong.refundMyIcoInvestment({from : users.fellow4}); },
       function() {
         var newBalance = t.asBigNumber(t.getWalletBalance(users.fellow4));
         t.assertTrue(fellow4OriginalBalance, newBalance, done, "fellow4 balance");
         t.assertEqualN(0, t.hong.balanceOf(users.fellow4), done, "fellow4 token count");
       },
-      
+
       function() { return t.hong.refundMyIcoInvestment({from : users.fellow5}); },
-      function() {  
+      function() {
         var newBalance = t.asBigNumber(t.getWalletBalance(users.fellow5));
         t.assertTrue(fellow5OriginalBalance, newBalance, done, "fellow5 balance");
         t.assertEqualN(0, t.hong.balanceOf(users.fellow5), done, "fellow5 token count");
       }
       ], done);
   });
-    
+
   after(function(done) {
     console.log("Shutting down sandbox");
     sandbox.stop(done);
