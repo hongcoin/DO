@@ -22,18 +22,16 @@ along with the HONG.  If not, see <http://www.gnu.org/licenses/>.
  * Parent contract that contains all of the configurable parameters of the main contract.
  */
 contract HongConfiguration {
-    uint constant MILLION = 10**6;
-
     uint public closingTime;
     uint public weiPerInitialHONG = 10**16;
     string public name = "HONG";
     string public symbol = "Ħ";
     uint8 public decimals = 0;
-    uint public maxBountyTokens = 2 * MILLION;
+    uint public maxBountyTokens = 2 * (10**6);
     uint public closingTimeExtensionPeriod = 30 days;
-    uint public minTokensToCreate = 100 * MILLION;
-    uint public maxTokensToCreate = 250 * MILLION;
-    uint public tokensPerTier = 50 * MILLION;
+    uint public minTokensToCreate = 100 * (10**6);
+    uint public maxTokensToCreate = 250 * (10**6);
+    uint public tokensPerTier = 50 * (10**6);
     uint public lastKickoffDateBuffer = 304 days;
 
     uint public mgmtRewardPercentage = 20;
