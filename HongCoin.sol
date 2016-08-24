@@ -64,7 +64,7 @@ contract TokenInterface is ErrorHandler {
 
     event evTransfer(address msg_sender, uint msg_value, address indexed _from, address indexed _to, uint256 _amount);
 
-    // Modifier that allows only shareholders to trigger
+    // Modifier that allows only token holders to trigger
     modifier onlyTokenHolders {
         if (balanceOf(msg.sender) == 0) doThrow("onlyTokenHolders"); else {_}
     }
@@ -504,7 +504,6 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         }
 
         // if we've reached the 60 day mark, try to lock the fund
-        // TEST closingTimeExtensionPeriod = 30 days
         if (!isFundLocked && !isDaySixtyChecked && (now >= (closingTime + closingTimeExtensionPeriod))) {
             if (isMinTokensReached()) {
                 // Case C
@@ -673,7 +672,6 @@ contract HONG is HONGInterface, Token, TokenCreation {
                 return;
             }
 
-            // TEST lastKickoffDateBuffer = 304 days
             if(lastKickoffDate + lastKickoffDateBuffer < now){ // 2 months from the end of the fiscal year
                 // accept voting
             }else{
