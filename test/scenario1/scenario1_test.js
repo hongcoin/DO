@@ -828,7 +828,7 @@ describe('HONG Contract Suite', function() {
     var expectedTier = Math.min(4, currentTier + 1);
     var expectedTokensPurchased = tokensAvailable + extraTokens; // one token at the next price will be purchased
     var weiToSend = pricePerTokenAtCurrentTier*expectedTokensPurchased + pricePerTokenAtCurrentTier/2;
-    var expectedDivisor = 100 + expectedTier;
+    var expectedDivisor = 100 + expectedTier * 5;
     var expectedTokensCreated = tokensPerTier * (currentTier+1) + extraTokens;
     var percentExtra = (currentTier * (currentTier+1))/2;
     var expectTotalTax = onePercentWeiPerInitialHONG.times(percentExtra).times(tokensPerTier);

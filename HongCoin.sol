@@ -549,12 +549,12 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function divisor() constant returns (uint divisor) {
 
         // Quantity divisor model: based on total quantity of coins issued
-        // Temp: Price ranged from 1.0 to 1.04 Ether for 500 M HONG Tokens
+        // Price ranged from 1.0 to 1.20 Ether for all HONG Tokens with a 0.05 ETH increase for each tier
 
         // The number of (base unit) tokens per wei is calculated
         // as `msg.value` * 100 / `divisor`
 
-        return 100 + getCurrentTier();
+        return 100 + getCurrentTier() * 5;
     }
 }
 
