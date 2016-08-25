@@ -74,6 +74,11 @@ module.exports = {
     return this.sandbox.web3.eth.sendTransaction({from: buyer, to: this.hong.address, gas: 900000, value: wei});
   },
 
+  send : function (_from, _to, wei) {
+    return this.sandbox.web3.eth.sendTransaction({from: _from, to: _to, gas: 900000, value: wei});
+  },
+
+
   logEventsToConsole : function (done) {
     var filter = this.hong.evRecord();
     filter.watch(function(err, val) {
@@ -172,47 +177,6 @@ module.exports = {
         done(err);
       }
     };
-  },
-
-  purchaseAllTokensInTier : function (done, buyer, expectedFundLocked, extraTokens) {
-    console.log("Purchasing the rest of the tokens in current tier, currentTier: " + this.hong.getCurrentTier());
-    done = this.logEventsToConsole(done);
-
-    var tokensPerTier = this.asNumber(this.hong.tokensPerTier());
-    var tokensAvailable = this.asNumber(this.hong.tokensAvailableAtCurrentTier());
-    var pricePerTokenAtCurrentTier = this.hong.pricePerTokenAtCurrentTier();
-    var previousBalanceOfBuyer = this.asNumber(this.hong.balanceOf(buyer));
-    var onePercentWeiPerInitialHONG = this.sandbox.web3.toBigNumber(this.hong.weiPerInitialHONG()).dividedBy(100);
-
-    // having trouble getting the right precision to represent this big purchase.
-    // adding padding of weiPerToken/2 to ensure that the requested number of tokens are
-    // purchased but not more.
-    var currentTier = this.asNumber(this.hong.getCurrentTier());
-    var expectedTier = Math.min(4, currentTier + 1);
-    var expectedTokensPurchased = tokensAvailable + extraTokens; // one token at the next price will be purchased
-    var weiToSend = pricePerTokenAtCurrentTier*expectedTokensPurchased + pricePerTokenAtCurrentTier/2;
-    var expectedDivisor = 100 + expectedTier * 5;
-    var expectedTokensCreated = tokensPerTier * (currentTier+1) + extraTokens;
-    var percentExtra = (currentTier * (currentTier+1))/2;
-    var expectTotalTax = onePercentWeiPerInitialHONG.times(percentExtra).times(tokensPerTier);
-    expectTotalTax = expectTotalTax.plus(onePercentWeiPerInitialHONG.times(currentTier).times(extraTokens))
-
-    var that = this;
-    this.validateTransactions([
-        function() {
-            return that.buyTokens(that.hong, buyer, weiToSend);
-        },
-        function() {
-          that.assertEqualN(that.hong.balanceOf(buyer), expectedTokensPurchased + previousBalanceOfBuyer, done, "buyer balance");
-          that.assertEqualN(that.hong.getCurrentTier(), expectedTier, done, "tier");
-          that.assertEqualN(that.hong.tokensCreated(), expectedTokensCreated, done, "tokens created");
-          that.assertEqualN(expectedDivisor, that.hong.divisor(), done, "divisor");
-          that.assertEqual(expectedFundLocked, that.hong.isFundLocked(), done, "fund locked");
-          that.assertEqual(expectedFundLocked, that.hong.isMaxTokensReached(), done, "max tokens reached");
-          that.assertTrue(expectTotalTax.equals(that.sandbox.web3.toBigNumber(that.getWalletBalance(that.hong.extraBalanceWallet()))), done, "extra balance");
-        }],
-        done
-    );
   },
 
     /*

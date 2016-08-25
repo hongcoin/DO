@@ -204,7 +204,7 @@ describe('HONG Contract Suite', function() {
      */
     it('check token price @ tier 1', function(done) {
       done = t.logAddressMessagesToConsole(done, t.hong.extraBalanceWallet());
-      checkPriceForTokens(done, users.fellow7, 1.01, 100);
+      checkPriceForTokens(done, users.fellow7, 1.05, 100);
     });
 
     /*
@@ -218,7 +218,7 @@ describe('HONG Contract Suite', function() {
      * Testing purchase at tier-1.  Refunding the purchase to avoid changing the state.
      */
     it('check token price @ tier 2', function(done) {
-      checkPriceForTokens(done, users.fellow7, 1.02, 100);
+      checkPriceForTokens(done, users.fellow7, 1.10, 100);
     });
 
     /*
@@ -232,7 +232,7 @@ describe('HONG Contract Suite', function() {
      * Testing purchase at tier-1.  Refunding the purchase to avoid changing the state.
      */
     it('check price @ tier 3', function(done) {
-      checkPriceForTokens(done, users.fellow7, 1.03, 100);
+      checkPriceForTokens(done, users.fellow7, 1.15, 100);
     });
 
     /*
@@ -246,7 +246,7 @@ describe('HONG Contract Suite', function() {
      * Testing purchase at tier-1.  Refunding the purchase to avoid changing the state.
      */
     it('check token price @ tier 4', function(done) {
-      checkPriceForTokens(done, users.fellow7, 1.04, 100);
+      checkPriceForTokens(done, users.fellow7, 1.20, 100);
     });
 
     /*
@@ -782,7 +782,59 @@ describe('HONG Contract Suite', function() {
         }
         ], done);
     });
-
+    
+    it('dose not allow fund to be sent to the return account after harvest', function(done) {
+      t.validateTransactions([
+        function() { return t.send(users.fellow2, t.hong.returnWallet(), 100)},
+        function(receipt) {
+          t.assertException(receipt, done);
+        }
+        ], done);      
+    });
+    
+    
+    describe("Collect Return After mgmtDistribute", function(){
+      var tokensCreated;
+      var bountyTokens;
+      var returnAccountBalance;
+      var expectedWeiPerToken;
+      
+      it('setup', function(done) {
+        tokensCreated = t.asBigNumber(t.hong.tokensCreated());
+        bountyTokens = t.asBigNumber(t.hong.bountyTokensCreated());
+        returnAccountBalance = t.asBigNumber(t.getWalletBalance(t.hong.returnWallet()));
+        expectedWeiPerToken = returnAccountBalance.dividedBy(tokensCreated.plus(bountyTokens)).floor();
+        done();
+      });
+      
+      it('allows fellow1 to collect', function(done) { collectReturn(users.fellow1, done);});
+      it('allows fellow2 to collect', function(done) { collectReturn(users.fellow2, done);});
+      it('allows fellow3 to collect', function(done) { collectReturn(users.fellow3, done);});
+      it('allows fellow4 to collect', function(done) { collectReturn(users.fellow4, done);});
+      it('allows fellow5 to collect', function(done) { collectReturn(users.fellow5, done);});
+      it('allows fellow6 to collect', function(done) { collectReturn(users.fellow6, done);});
+      it('allows fellow7 to collect', function(done) { collectReturn(users.fellow7, done);});
+      
+      function collectReturn(tokenHolder, done) {
+        console.log("[allows user to collect return: " + tokenHolder);
+        done = t.logEventsToConsole(done);
+        
+        var shares = t.asBigNumber(t.hong.balanceOf(tokenHolder));
+        var originalBalance = t.asBigNumber(t.getWalletBalance(tokenHolder));
+        var expectedReturn = shares.times(expectedWeiPerToken);
+        var expectedBalance = originalBalance.plus(expectedReturn);
+    
+        console.log("shares: " + shares + ", expected return: " + expectedReturn + ", tokenHolder: " + tokenHolder);
+        t.validateTransactions([
+            function() { return t.hong.collectMyReturn({from: tokenHolder }); },
+            function() { 
+              console.log("Validating return ...");
+              console.log("Remaining returnWallet balance: " + t.asBigNumber(t.getWalletBalance(t.hong.returnWallet())));
+              t.assertEqualB(expectedBalance, t.asBigNumber(t.getWalletBalance(tokenHolder)), done, "user balance");
+              
+            }], done);
+      }
+    });
   });
 
 
@@ -794,7 +846,7 @@ describe('HONG Contract Suite', function() {
     var previousExtraBalance = t.asNumber(t.getWalletBalance(t.hong.extraBalanceWallet()));
     t.validateTransactions([
       function() {
-        return t.buyTokens(buyer, ethToSend*eth);
+        return t.buyTokens(buyer, sandbox.web3.toWei(ethToSend, 'ether'));
       },
       function() {
         t.assertEqualN(t.hong.balanceOf(buyer), previousBalanceOfBuyer + expectedTokens, done, "buyer tokens");
@@ -824,15 +876,16 @@ describe('HONG Contract Suite', function() {
     // having trouble getting the right precision to represent this big purchase.
     // adding padding of weiPerToken/2 to ensure that the requested number of tokens are
     // purchased but not more.
+    var divisorScalingFactor = 5;
     var currentTier = t.asNumber(t.hong.getCurrentTier());
     var expectedTier = Math.min(4, currentTier + 1);
     var expectedTokensPurchased = tokensAvailable + extraTokens; // one token at the next price will be purchased
     var weiToSend = pricePerTokenAtCurrentTier*expectedTokensPurchased + pricePerTokenAtCurrentTier/2;
-    var expectedDivisor = 100 + expectedTier * 5;
+    var expectedDivisor = 100 + expectedTier * divisorScalingFactor;
     var expectedTokensCreated = tokensPerTier * (currentTier+1) + extraTokens;
-    var percentExtra = (currentTier * (currentTier+1))/2;
+    var percentExtra = divisorScalingFactor * (currentTier * (currentTier+1))/2;
     var expectTotalTax = onePercentWeiPerInitialHONG.times(percentExtra).times(tokensPerTier);
-    expectTotalTax = expectTotalTax.plus(onePercentWeiPerInitialHONG.times(currentTier).times(extraTokens))
+    expectTotalTax = expectTotalTax.plus(onePercentWeiPerInitialHONG.times(currentTier*divisorScalingFactor).times(extraTokens))
 
     t.validateTransactions([
         function() {
@@ -845,7 +898,7 @@ describe('HONG Contract Suite', function() {
           t.assertEqualN(expectedDivisor, t.hong.divisor(), done, "divisor");
           t.assertEqual(expectedFundLocked, t.hong.isFundLocked(), done, "fund locked");
           t.assertEqual(expectedFundLocked, t.hong.isMaxTokensReached(), done, "max tokens reached");
-          t.assertTrue(expectTotalTax.equals(sandbox.web3.toBigNumber(t.getWalletBalance(t.hong.extraBalanceWallet()))), done, "extra balance");
+          t.assertEqualB(expectTotalTax, t.asBigNumber(t.getWalletBalance(t.hong.extraBalanceWallet())), done, "extra balance");
         }],
         done
     );
