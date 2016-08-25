@@ -400,7 +400,7 @@ describe('HONG Contract Suite', function() {
 
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyTokenHolders");
       t.validateTransactions([
-          function() { return t.hong.voteToKickoffFund({from: nonTokenHolder})},
+          function() { return t.hong.voteToKickoffNewFiscalYear({from: nonTokenHolder})},
           function() {
             t.assertEqualN(0, t.hong.supportKickoffQuorum(fiscalYear), done, "voted kickoff quorum count");
           }
@@ -416,7 +416,7 @@ describe('HONG Contract Suite', function() {
 
       var getQuorumCount = function() { return t.hong.supportKickoffQuorum(fiscalYear) };
       var wasVoteSuccessful = function() { return t.hong.isKickoffEnabled(fiscalYear)};
-      var vote = function(params) { return t.hong.voteToKickoffFund(params) };
+      var vote = function(params) { return t.hong.voteToKickoffNewFiscalYear(params) };
 
       done = t.logEventsToConsole(done);
       t.validateTransactions([
@@ -514,7 +514,7 @@ describe('HONG Contract Suite', function() {
       done = t.logAddressMessagesToConsole(done, t.hong.managementFeeWallet());
       t.validateTransactions([
           function() {
-            return t.hong.voteToKickoffFund({from: tokenHolder});
+            return t.hong.voteToKickoffNewFiscalYear({from: tokenHolder});
           },
           function() {
             t.assertEqual(true, t.hong.isKickoffEnabled(fiscalYear), done, "kickoff enabled");
@@ -565,9 +565,9 @@ describe('HONG Contract Suite', function() {
       t.sleepFor(kickoffDelay)
       done = t.logEventsToConsole(done);
       t.validateTransactions([
-        function() { return t.hong.voteToKickoffFund({from: users.fellow2})},
+        function() { return t.hong.voteToKickoffNewFiscalYear({from: users.fellow2})},
         function() {},
-        function() { return t.hong.voteToKickoffFund({from: users.fellow5})},
+        function() { return t.hong.voteToKickoffNewFiscalYear({from: users.fellow5})},
         function() {
           t.assertEqualN(2, t.hong.currentFiscalYear(), done, "fiscal year");
         },
@@ -578,9 +578,9 @@ describe('HONG Contract Suite', function() {
       t.sleepFor(kickoffDelay)
       done = t.logEventsToConsole(done);
       t.validateTransactions([
-        function() { return t.hong.voteToKickoffFund({from: users.fellow2})},
+        function() { return t.hong.voteToKickoffNewFiscalYear({from: users.fellow2})},
         function() {},
-        function() { return t.hong.voteToKickoffFund({from: users.fellow5})},
+        function() { return t.hong.voteToKickoffNewFiscalYear({from: users.fellow5})},
         function() {
           t.assertEqualN(3, t.hong.currentFiscalYear(), done, "fiscal year");
         },
@@ -591,9 +591,9 @@ describe('HONG Contract Suite', function() {
       t.sleepFor(kickoffDelay)
       done = t.logEventsToConsole(done);
       t.validateTransactions([
-        function() { return t.hong.voteToKickoffFund({from: users.fellow2})},
+        function() { return t.hong.voteToKickoffNewFiscalYear({from: users.fellow2})},
         function() {},
-        function() { return t.hong.voteToKickoffFund({from: users.fellow5})},
+        function() { return t.hong.voteToKickoffNewFiscalYear({from: users.fellow5})},
         function() {
           t.assertEqualN(4, t.hong.currentFiscalYear(), done, "fiscal year");
         },
@@ -605,9 +605,9 @@ describe('HONG Contract Suite', function() {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "kickOff:4thYear");
       t.validateTransactions([
-        function() { return t.hong.voteToKickoffFund({from: users.fellow2})},
+        function() { return t.hong.voteToKickoffNewFiscalYear({from: users.fellow2})},
         function() {},
-        function() { return t.hong.voteToKickoffFund({from: users.fellow5})},
+        function() { return t.hong.voteToKickoffNewFiscalYear({from: users.fellow5})},
         function() {
           t.assertEqualN(4, t.hong.currentFiscalYear(), done, "fiscal year");
         },
@@ -828,7 +828,7 @@ describe('HONG Contract Suite', function() {
     var expectedTier = Math.min(4, currentTier + 1);
     var expectedTokensPurchased = tokensAvailable + extraTokens; // one token at the next price will be purchased
     var weiToSend = pricePerTokenAtCurrentTier*expectedTokensPurchased + pricePerTokenAtCurrentTier/2;
-    var expectedDivisor = 100 + expectedTier;
+    var expectedDivisor = 100 + expectedTier * 5;
     var expectedTokensCreated = tokensPerTier * (currentTier+1) + extraTokens;
     var percentExtra = (currentTier * (currentTier+1))/2;
     var expectTotalTax = onePercentWeiPerInitialHONG.times(percentExtra).times(tokensPerTier);

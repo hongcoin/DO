@@ -549,12 +549,12 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
     function divisor() constant returns (uint divisor) {
 
         // Quantity divisor model: based on total quantity of coins issued
-        // Temp: Price ranged from 1.0 to 1.04 Ether for 500 M HONG Tokens
+        // Price ranged from 1.0 to 1.20 Ether for all HONG Tokens with a 0.05 ETH increase for each tier
 
         // The number of (base unit) tokens per wei is calculated
         // as `msg.value` * 100 / `divisor`
 
-        return 100 + getCurrentTier();
+        return 100 + getCurrentTier() * 5;
     }
 }
 
@@ -575,7 +575,7 @@ contract HONGInterface is ErrorHandler, HongConfiguration {
     uint public totalInitialBalance;
     uint public annualManagementFee;
 
-    function voteToKickoffFund();
+    function voteToKickoffNewFiscalYear();
     function voteToFreezeFund();
     function voteToUnfreezeFund();
     function voteToHarvestFund();
@@ -649,7 +649,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
     /*
      * Voting for some critical steps, on blockchain
      */
-    function voteToKickoffFund() onlyTokenHolders noEther onlyLocked {
+    function voteToKickoffNewFiscalYear() onlyTokenHolders noEther onlyLocked {
         // this is the only valid fiscal year parameter, so there's no point in letting the caller pass it in.
         // Best case is they get it wrong and we throw, worst case is the get it wrong and there's some exploit
         uint _fiscal = currentFiscalYear + 1;
