@@ -54,11 +54,11 @@ describe(scenario, function() {
       nothingToAssert,
 
       function() {
-        return t.hong.voteToKickoffFund({from: users.fellow1});
+        return t.hong.voteToKickoffNewFiscalYear({from: users.fellow1});
       },
       nothingToAssert,
 
-      function() { return t.hong.voteToKickoffFund({from: users.fellow5});},
+      function() { return t.hong.voteToKickoffNewFiscalYear({from: users.fellow5});},
       function() {
         var fiscalYear = t.hong.currentFiscalYear();
         t.assertEqual(true, t.hong.isKickoffEnabled(fiscalYear), done, "kickoff enable");

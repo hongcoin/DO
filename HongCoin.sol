@@ -575,7 +575,7 @@ contract HONGInterface is ErrorHandler, HongConfiguration {
     uint public totalInitialBalance;
     uint public annualManagementFee;
 
-    function voteToKickoffFund();
+    function voteToKickoffNewFiscalYear();
     function voteToFreezeFund();
     function voteToUnfreezeFund();
     function voteToHarvestFund();
@@ -649,7 +649,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
     /*
      * Voting for some critical steps, on blockchain
      */
-    function voteToKickoffFund() onlyTokenHolders noEther onlyLocked {
+    function voteToKickoffNewFiscalYear() onlyTokenHolders noEther onlyLocked {
         // this is the only valid fiscal year parameter, so there's no point in letting the caller pass it in.
         // Best case is they get it wrong and we throw, worst case is the get it wrong and there's some exploit
         uint _fiscal = currentFiscalYear + 1;
