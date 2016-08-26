@@ -94,7 +94,7 @@ describe('HONG Contract Suite', function() {
           },
           function() {
             console.log("Validating Purchase...");
-            t.assertEqualN(t.hong.actualBalance(), 1*eth, done, "hong balance");
+            t.assertEqualN(t.getHongBalance(), 1*eth, done, "hong balance");
             t.assertEqualN(t.hong.balanceOf(buyer), 100, done, "buyer tokens");
             t.assertEqualN(t.hong.tokensCreated(), 100, done, "tokens created");
           },
@@ -104,7 +104,7 @@ describe('HONG Contract Suite', function() {
           },
           function() {
             console.log("Validating refund...");
-            t.assertEqualN(t.hong.actualBalance(), 0*eth, done, "hong balance");
+            t.assertEqualN(t.getHongBalance(), 0*eth, done, "hong balance");
             t.assertEqualN(t.hong.balanceOf(buyer), 0, done, "buyer tokens");
             t.assertEqualN(t.hong.tokensCreated(), 0, done, "tokens created");
           }
@@ -130,7 +130,7 @@ describe('HONG Contract Suite', function() {
           return t.buyTokens(buyer, 1*eth);
         },
         function() {
-          t.assertEqualN(t.hong.actualBalance(), 1*eth, done, "hong balance");
+          t.assertEqualN(t.getHongBalance(), 1*eth, done, "hong balance");
           t.assertEqualN(t.hong.balanceOf(buyer), 100, done, "buyer tokens");
           t.assertEqualN(t.hong.tokensCreated(), 100, done, "tokens created");
         }],
@@ -151,7 +151,7 @@ describe('HONG Contract Suite', function() {
           return t.buyTokens(buyer, 1*eth);
         },
         function() {
-          t.assertEqualN(t.hong.actualBalance(), 2*eth, done, "hong balance");
+          t.assertEqualN(t.getHongBalance(), 2*eth, done, "hong balance");
           t.assertEqualN(t.hong.balanceOf(buyer), 200, done, "buyer tokens");
           t.assertEqualN(t.hong.tokensCreated(), 200, done, "tokens created");
         }],
@@ -170,7 +170,7 @@ describe('HONG Contract Suite', function() {
           return t.buyTokens(buyer, 1*eth);
         },
         function() {
-          t.assertEqualN(t.hong.actualBalance(), 3*eth, done, "hong balance");
+          t.assertEqualN(t.getHongBalance(), 3*eth, done, "hong balance");
           t.assertEqualN(t.hong.balanceOf(buyer), 100, done, "buyer tokens");
           t.assertEqualN(t.hong.tokensCreated(), 300, done, "tokens created");
         }],
@@ -262,7 +262,7 @@ describe('HONG Contract Suite', function() {
       console.log("[does not allow refunds after fund is locked]");
       var buyer = users.fellow3;
       var tokensBefore = t.hong.balanceOf(buyer);
-      var hongBalanceBefore = t.hong.actualBalance();
+      var hongBalanceBefore = t.getHongBalance();
 
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "notLocked");
       done = t.logEventsToConsole(done);
@@ -272,7 +272,7 @@ describe('HONG Contract Suite', function() {
           function() { return t.hong.refundMyIcoInvestment({from: buyer}) },
           function() {
             t.assertEqualN(tokensBefore, t.hong.balanceOf(buyer), done, "tokens unchanged");
-            t.assertEqualN(hongBalanceBefore, t.hong.actualBalance(), done, "hong balance");
+            t.assertEqualN(hongBalanceBefore, t.getHongBalance(), done, "hong balance");
           }],
           done);
     });
@@ -498,7 +498,7 @@ describe('HONG Contract Suite', function() {
     it ('does kickoff when quorum is reached', function(done){
       console.log('[does kickoff when quorum is reached]');
       var tokenHolder = users.fellow5;
-      var previousHongBalance = sandbox.web3.toBigNumber(t.hong.actualBalance());
+      var previousHongBalance = sandbox.web3.toBigNumber(t.getHongBalance());
       var previousExtraBalance = sandbox.web3.toBigNumber(t.getWalletBalance(t.hong.extraBalanceWallet()));
       var previousMgmtBodyBalance = sandbox.web3.toBigNumber(t.getWalletBalance(ownerAddress));
 
@@ -534,7 +534,7 @@ describe('HONG Contract Suite', function() {
       });
 
       var fellow7Balance = t.asBigNumber(t.getWalletBalance(users.fellow7));
-      var hongBalance = t.asBigNumber(t.hong.actualBalance());
+      var hongBalance = t.asBigNumber(t.getHongBalance());
 
       var expectedUserBalance = fellow7Balance.add(testAmount);
       var expectedHongBalance = hongBalance.minus(testAmount);
@@ -543,7 +543,7 @@ describe('HONG Contract Suite', function() {
         function(){ return t.hong.mgmtInvestProject(users.fellow7, testAmount);},
         function(){
           var actualUserBalance = t.asBigNumber(t.getWalletBalance(users.fellow7));
-          var actualHongBalance = t.asBigNumber(t.hong.actualBalance());
+          var actualHongBalance = t.asBigNumber(t.getHongBalance());
           t.assertEqualB(expectedUserBalance, actualUserBalance, done, "expected user balance");
           t.assertEqualB(expectedHongBalance, actualHongBalance, done, "expected hong balance");
         }
@@ -758,7 +758,7 @@ describe('HONG Contract Suite', function() {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFired(t.hong.evMgmtDistributed(), done);
 
-      var hongBalance = t.asBigNumber(t.hong.actualBalance());
+      var hongBalance = t.asBigNumber(t.getHongBalance());
       var extraBalance = t.asBigNumber(t.getWalletBalance(t.hong.extraBalanceWallet()));
       var mgmtFeeWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.managementFeeWallet()));
       var returnWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.returnWallet()));

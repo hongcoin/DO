@@ -96,6 +96,7 @@ contract Token is TokenInterface {
 
 contract OwnedAccount is ErrorHandler {
     address public owner;
+    bool acceptDeposits = true; 
 
     event evPayOut(address msg_sender, uint msg_value, address indexed _recipient, uint _amount);
 
@@ -125,9 +126,9 @@ contract OwnedAccount is ErrorHandler {
             evPayOut(msg.sender, msg.value, _recipient, _amount);
     }
 
-    // consistent with HONG contract
-    function actualBalance() constant returns (uint) {
-        return this.balance;
+    function () returns (bool success) {
+        if (!acceptDeposits) throw;
+        return true;
     }
 }
 
@@ -149,6 +150,7 @@ contract ReturnWallet is OwnedAccount {
 
     function switchToDistributionMode(uint _totalTokens) onlyOwner {
         inDistributionMode = true;
+        acceptDeposits = false;
         totalTokens = _totalTokens;
         amountToDistribute = this.balance;
         weiPerToken = amountToDistribute / totalTokens;
@@ -156,11 +158,6 @@ contract ReturnWallet is OwnedAccount {
 
     function payTokenHolderBasedOnTokenCount(address _tokenHolderAddress, uint _tokens) onlyOwner {
         payOutAmount(_tokenHolderAddress, weiPerToken * _tokens);
-    }
-    
-    function () returns (bool success) {
-        if (inDistributionMode) throw;
-        return true;
     }
 }
 
@@ -171,6 +168,7 @@ contract ExtraBalanceWallet is OwnedAccount {
     }
 
     function returnBalanceToMainAccount() {
+        acceptDeposits = false;
         payOutAmount(owner, this.balance);
     }
 
@@ -179,6 +177,7 @@ contract ExtraBalanceWallet is OwnedAccount {
     }
 
     function payBalanceToReturnWallet() {
+        acceptDeposits = false;
         payOutAmount(returnWalletAddress, this.balance);
     }
 
@@ -191,6 +190,7 @@ contract RewardWallet is OwnedAccount {
     }
 
     function payBalanceToReturnWallet() {
+        acceptDeposits = false;
         payOutAmount(returnWalletAddress, this.balance);
     }
 }
@@ -208,6 +208,7 @@ contract ManagementFeeWallet is OwnedAccount {
     }
 
     function payBalanceToReturnWallet() {
+        acceptDeposits = false;
         payOutAmount(returnWalletAddress, this.balance);
     }
 }
@@ -472,7 +473,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
         returnWallet.switchToDistributionMode(tokensCreated + bountyTokensCreated);
 
         // Token holder can claim the remaining fund (the total amount harvested/ to be distributed) starting from here
-        evMgmtDistributed(msg.sender, msg.value, returnWallet.actualBalance(), true);
+        evMgmtDistributed(msg.sender, msg.value, returnWallet.balance, true);
         isDistributionInProgress = false;
     }
 
@@ -690,7 +691,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
                 extraBalanceWallet.returnBalanceToMainAccount();
 
                 // reserve mgmtFeePercentage of whole fund to ManagementFeePoolWallet
-                totalInitialBalance = actualBalance();
+                totalInitialBalance = this.balance;
                 uint fundToReserve = (totalInitialBalance * mgmtFeePercentage) / 100;
                 annualManagementFee = fundToReserve / 4;
                 if(!managementFeeWallet.send(fundToReserve)){
@@ -759,7 +760,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
             return;
         }
 
-        if(_amount >= actualBalance()){
+        if(_amount >= this.balance){
             doThrow("failed:mgmtInvestProject: amount >= actualBalance");
             return;
         }
@@ -813,9 +814,5 @@ contract HONG is HONGInterface, Token, TokenCreation {
             }
             return;
         }
-    }
-
-    function actualBalance() constant returns (uint _actualBalance) {
-        return this.balance;
     }
 }
