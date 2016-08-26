@@ -157,6 +157,11 @@ contract ReturnWallet is OwnedAccount {
     function payTokenHolderBasedOnTokenCount(address _tokenHolderAddress, uint _tokens) onlyOwner {
         payOutAmount(_tokenHolderAddress, weiPerToken * _tokens);
     }
+    
+    function () returns (bool success) {
+        if (inDistributionMode) throw;
+        return true;
+    }
 }
 
 contract ExtraBalanceWallet is OwnedAccount {
