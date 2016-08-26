@@ -216,7 +216,7 @@ module.exports = {
 
   printBalances : function() {
     console.log("-------");
-    console.log("Hong: " + this.hong.actualBalance());
+    console.log("Hong: " + this.getHongBalance());
     console.log("extraBalanceWallet: " + this.getWalletBalance(this.hong.extraBalanceWallet()));
     console.log("managementFeeWallet: " + this.getWalletBalance(this.hong.managementFeeWallet()));
     console.log("returnWallet: " + this.getWalletBalance(this.hong.returnWallet()));
