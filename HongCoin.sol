@@ -39,7 +39,7 @@ contract HongConfiguration {
 
     uint public harvestQuorumPercent = 50;
     uint public freezeQuorumPercent = 50;
-    uint public kickoffQuorumPercent = 25;
+    uint public kickoffQuorumPercent = 20;
 }
 
 contract ErrorHandler {
