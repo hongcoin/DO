@@ -73,7 +73,7 @@ describe(scenario, function() {
     var tokens2 = t.asNumber(t.hong.balanceOf(users.fellow2));
     var tokens3 = t.asNumber(t.hong.balanceOf(users.fellow3));
 
-    var hongBalance = t.asBigNumber(t.hong.actualBalance());
+    var hongBalance = t.asBigNumber(t.getHongBalance());
     var extraBalance = t.asBigNumber(t.getWalletBalance(t.hong.extraBalanceWallet()));
     var mgmtFeeWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.managementFeeWallet()));
     var returnWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.returnWallet()));
@@ -179,7 +179,7 @@ describe(scenario, function() {
         var expectedVotes = tokens1 + tokens2 + tokens3;
         t.assertEqualN(expectedVotes, t.hong.supportFreezeQuorum(), done, "freeze vote count");
         t.assertEqual(true, t.hong.isFreezeEnabled(), done, "frozen");
-        t.assertEqualN(0, t.hong.actualBalance(), done, "hong balance");
+        t.assertEqualN(0, t.getHongBalance(), done, "hong balance");
         t.assertEqualN(0, t.getWalletBalance(t.hong.extraBalanceWallet()), done, "extraBalance wallet");
         t.assertEqualN(0, t.getWalletBalance(t.hong.managementFeeWallet()), done, "mgmt fee wallet");
         t.assertEqualN(0, t.getWalletBalance(t.hong.rewardWallet()), done, "reward wallet");

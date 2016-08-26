@@ -70,6 +70,10 @@ module.exports = {
     return this.sandbox.web3.eth.getBalance(address);
   },
 
+  getHongBalance : function() {
+    return this.sandbox.web3.eth.getBalance(this.hong.address);
+  },
+
   buyTokens : function (buyer, wei) {
     return this.sandbox.web3.eth.sendTransaction({from: buyer, to: this.hong.address, gas: 900000, value: wei});
   },
