@@ -11,7 +11,7 @@
   },
   "devDependencies": {
     "browserify": "^13.0.0",
-    "ethereum-sandbox-client": "^1.0.0-beta3",
+    "ethereum-sandbox-client": "^1.0.1-beta2",
     "gulp": "^3.9.1",
     "gulp-mocha": "^2.2.0",
     "mocha": "^2.4.5",
