@@ -767,7 +767,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
 
         // send the balance (_amount) to _projectWallet
         if (!_projectWallet.call.value(_amount)()) {
-            doThrow("failed:mgmtInvestProject: cannot send send to _projectWallet");
+            doThrow("failed:mgmtInvestProject: cannot send to _projectWallet");
             return;
         }
 
