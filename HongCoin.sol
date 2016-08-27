@@ -39,7 +39,7 @@ contract HongConfiguration {
 
     uint public harvestQuorumPercent = 50;
     uint public freezeQuorumPercent = 50;
-    uint public kickoffQuorumPercent = 25;
+    uint public kickoffQuorumPercent = 20;
 }
 
 contract ErrorHandler {
@@ -96,7 +96,7 @@ contract Token is TokenInterface {
 
 contract OwnedAccount is ErrorHandler {
     address public owner;
-    bool acceptDeposits = true; 
+    bool acceptDeposits = true;
 
     event evPayOut(address msg_sender, uint msg_value, address indexed _recipient, uint _amount);
 
@@ -444,7 +444,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     }
 
-    function mgmtDistribute() noEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotReady {
+    function mgmtDistribute() hasEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotReady {
         distributeDownstream(mgmtRewardPercentage);
     }
 
@@ -753,7 +753,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
     function mgmtInvestProject(
         address _projectWallet,
         uint _amount
-    ) noEther onlyManagementBody returns (bool _success) {
+    ) hasEther onlyManagementBody returns (bool _success) {
 
         if(!isKickoffEnabled[currentFiscalYear] || isFreezeEnabled || isHarvestEnabled){
             evMgmtInvestProject(msg.sender, msg.value, _projectWallet, _amount, false);
