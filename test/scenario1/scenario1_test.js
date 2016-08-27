@@ -364,14 +364,14 @@ describe('HONG Contract Suite', function() {
   });
 
   describe("mgmt only", function() {
-    it ('does not allow others to call mgmtDistribute', function(done) {
-      console.log('[does not allow others to call mgmtDistribute]');
-      done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
-      t.validateTransactions([
-          function() {return t.hong.mgmtDistribute({from: users.fellow4})},
-          function() {}
-        ], done);
-    });
+    // it ('does not allow others to call mgmtDistribute', function(done) {
+    //   console.log('[does not allow others to call mgmtDistribute]');
+    //   done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
+    //   t.validateTransactions([
+    //       function() {return t.hong.mgmtDistribute({from: users.fellow4})},
+    //       function() {}
+    //     ], done);
+    // });
 
     it ('does not allow others to call mgmtIssueBountyToken', function(done) {
       console.log('[does not allow others to call mgmtIssueBountyToken]');
@@ -382,14 +382,14 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
 
-    it ('does not allow others to call mgmtInvestProject', function(done) {
-      console.log('[does not allow others to call mgmtInvestProject]');
-      done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
-      t.validateTransactions([
-          function() {return t.hong.mgmtInvestProject(users.fellow5, 100, {from: users.fellow4})},
-          function() {}
-        ], done);
-    });
+    // it ('does not allow others to call mgmtInvestProject', function(done) {
+    //   console.log('[does not allow others to call mgmtInvestProject]');
+    //   done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
+    //   t.validateTransactions([
+    //       function() {return t.hong.mgmtInvestProject(users.fellow5, 100, {from: users.fellow4})},
+    //       function() {}
+    //     ], done);
+    // });
   });
 
   describe("kick off voting", function() {
@@ -447,6 +447,13 @@ describe('HONG Contract Suite', function() {
             t.assertEqualN(tokens1, t.hong.balanceOf(users.fellow1), done, "fellow 1 tokens");
             t.assertEqualN(0, getQuorumCount(), done, "vote count");
             t.assertEqual(false, wasVoteSuccessful(), done, "not successful");
+          },
+
+          function() { return t.hong.transfer(users.fellow3, t.asNumber("2000100"), {from: users.fellow2})},
+          function() {
+            tokens2 = tokens2 - t.asNumber("2000100")
+            console.log("transfering token back from fellow2 to fellow3 so that balanceOf(fellow1) will not trigger kickoff")
+            t.assertEqual(false, wasVoteSuccessful() , done, "not successful");
           },
 
           function() { return vote({from: users.fellow1})},
@@ -526,6 +533,7 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
 
+    // TODO allow test ether to be sent with a function to test it
     it ('allows mgmt to invest in a project', function(done){
       var testAmount = 100;
       done = t.logEventsToConsole(done);
@@ -714,7 +722,8 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
 
-    it ('does not allow mggmtBody to call mgmtDistribute before harvest is enabled', function(done) {
+    // TODO allow test ether to be sent with a function to test it
+    it ('does not allow mgmtBody to call mgmtDistribute before harvest is enabled', function(done) {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyHarvestEnabled");
       t.validateTransactions([
@@ -743,7 +752,8 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
 
-    it ('does not allow non-owner to call mgmtDistribut', function(done) {
+    // TODO allow test ether to be sent with a function to test it
+    it ('does not allow non-owner to call mgmtDistribute', function(done) {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
       t.validateTransactions([
@@ -782,23 +792,23 @@ describe('HONG Contract Suite', function() {
         }
         ], done);
     });
-    
+
     it('dose not allow fund to be sent to the return account after harvest', function(done) {
       t.validateTransactions([
         function() { return t.send(users.fellow2, t.hong.returnWallet(), 100)},
         function(receipt) {
           t.assertException(receipt, done);
         }
-        ], done);      
+        ], done);
     });
-    
-    
+
+
     describe("Collect Return After mgmtDistribute", function(){
       var tokensCreated;
       var bountyTokens;
       var returnAccountBalance;
       var expectedWeiPerToken;
-      
+
       it('setup', function(done) {
         tokensCreated = t.asBigNumber(t.hong.tokensCreated());
         bountyTokens = t.asBigNumber(t.hong.bountyTokensCreated());
@@ -806,7 +816,7 @@ describe('HONG Contract Suite', function() {
         expectedWeiPerToken = returnAccountBalance.dividedBy(tokensCreated.plus(bountyTokens)).floor();
         done();
       });
-      
+
       it('allows fellow1 to collect', function(done) { collectReturn(users.fellow1, done);});
       it('allows fellow2 to collect', function(done) { collectReturn(users.fellow2, done);});
       it('allows fellow3 to collect', function(done) { collectReturn(users.fellow3, done);});
@@ -814,24 +824,24 @@ describe('HONG Contract Suite', function() {
       it('allows fellow5 to collect', function(done) { collectReturn(users.fellow5, done);});
       it('allows fellow6 to collect', function(done) { collectReturn(users.fellow6, done);});
       it('allows fellow7 to collect', function(done) { collectReturn(users.fellow7, done);});
-      
+
       function collectReturn(tokenHolder, done) {
         console.log("[allows user to collect return: " + tokenHolder);
         done = t.logEventsToConsole(done);
-        
+
         var shares = t.asBigNumber(t.hong.balanceOf(tokenHolder));
         var originalBalance = t.asBigNumber(t.getWalletBalance(tokenHolder));
         var expectedReturn = shares.times(expectedWeiPerToken);
         var expectedBalance = originalBalance.plus(expectedReturn);
-    
+
         console.log("shares: " + shares + ", expected return: " + expectedReturn + ", tokenHolder: " + tokenHolder);
         t.validateTransactions([
             function() { return t.hong.collectMyReturn({from: tokenHolder }); },
-            function() { 
+            function() {
               console.log("Validating return ...");
               console.log("Remaining returnWallet balance: " + t.asBigNumber(t.getWalletBalance(t.hong.returnWallet())));
               t.assertEqualB(expectedBalance, t.asBigNumber(t.getWalletBalance(tokenHolder)), done, "user balance");
-              
+
             }], done);
       }
     });
