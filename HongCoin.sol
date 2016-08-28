@@ -583,7 +583,7 @@ contract HONGInterface is ErrorHandler, HongConfiguration {
 
     function voteToKickoffNewFiscalYear();
     function voteToFreezeFund();
-    function voteToUnfreezeFund();
+    function recallVoteToFreezeFund();
     function voteToHarvestFund();
 
     function collectMyReturn();
@@ -726,7 +726,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
         }
     }
 
-    function voteToUnfreezeFund() onlyTokenHolders onlyNotFrozen noEther {
+    function recallVoteToFreezeFund() onlyTokenHolders onlyNotFrozen noEther {
         supportFreezeQuorum -= votedFreeze[msg.sender];
         votedFreeze[msg.sender] = 0;
     }

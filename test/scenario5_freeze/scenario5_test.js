@@ -157,7 +157,7 @@ describe(scenario, function() {
       },
 
       /* Fellow 2 changes his mind */
-      function() { return t.hong.voteToUnfreezeFund({from: users.fellow2})},
+      function() { return t.hong.recallVoteToFreezeFund({from: users.fellow2})},
       function() {
         console.log("Validating fellow 2 voted to unfreeze...")
         t.assertEqualN(0, t.hong.supportFreezeQuorum(), done, "freeze vote count");
@@ -187,7 +187,7 @@ describe(scenario, function() {
       },
 
       /* Fellow 2 changes his mind again, but now it's too late */
-      function() { return t.hong.voteToUnfreezeFund({from: users.fellow2})},
+      function() { return t.hong.recallVoteToFreezeFund({from: users.fellow2})},
       function() {
         console.log("Validating fellow 2 cannot unfreeze after the fund is frozen...")
         var expectedVotes = tokens1 + tokens2 + tokens3;
