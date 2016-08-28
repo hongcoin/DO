@@ -444,7 +444,7 @@ contract TokenCreation is TokenCreationInterface, Token, GovernanceInterface {
 
     }
 
-    function mgmtDistribute() hasEther onlyManagementBody onlyHarvestEnabled onlyDistributionNotReady {
+    function mgmtDistribute() onlyManagementBody hasEther onlyHarvestEnabled onlyDistributionNotReady {
         distributeDownstream(mgmtRewardPercentage);
     }
 
@@ -753,7 +753,7 @@ contract HONG is HONGInterface, Token, TokenCreation {
     function mgmtInvestProject(
         address _projectWallet,
         uint _amount
-    ) hasEther onlyManagementBody returns (bool _success) {
+    ) onlyManagementBody hasEther returns (bool _success) {
 
         if(!isKickoffEnabled[currentFiscalYear] || isFreezeEnabled || isHarvestEnabled){
             evMgmtInvestProject(msg.sender, msg.value, _projectWallet, _amount, false);

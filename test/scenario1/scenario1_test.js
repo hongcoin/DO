@@ -364,14 +364,14 @@ describe('HONG Contract Suite', function() {
   });
 
   describe("mgmt only", function() {
-    // it ('does not allow others to call mgmtDistribute', function(done) {
-    //   console.log('[does not allow others to call mgmtDistribute]');
-    //   done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
-    //   t.validateTransactions([
-    //       function() {return t.hong.mgmtDistribute({from: users.fellow4})},
-    //       function() {}
-    //     ], done);
-    // });
+    it ('does not allow others to call mgmtDistribute', function(done) {
+      console.log('[does not allow others to call mgmtDistribute]');
+      done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
+      t.validateTransactions([
+          function() {return t.hong.mgmtDistribute({from: users.fellow4})},
+          function() {}
+        ], done);
+    });
 
     it ('does not allow others to call mgmtIssueBountyToken', function(done) {
       console.log('[does not allow others to call mgmtIssueBountyToken]');
@@ -382,14 +382,14 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
 
-    // it ('does not allow others to call mgmtInvestProject', function(done) {
-    //   console.log('[does not allow others to call mgmtInvestProject]');
-    //   done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
-    //   t.validateTransactions([
-    //       function() {return t.hong.mgmtInvestProject(users.fellow5, 100, {from: users.fellow4})},
-    //       function() {}
-    //     ], done);
-    // });
+    it ('does not allow others to call mgmtInvestProject', function(done) {
+      console.log('[does not allow others to call mgmtInvestProject]');
+      done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
+      t.validateTransactions([
+          function() {return t.hong.mgmtInvestProject(users.fellow5, 100, {from: users.fellow4})},
+          function() {}
+        ], done);
+    });
   });
 
   describe("kick off voting", function() {
@@ -533,7 +533,6 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
 
-    // TODO allow test ether to be sent with a function to test it
     it ('allows mgmt to invest in a project', function(done){
       var testAmount = 100;
       done = t.logEventsToConsole(done);
@@ -544,12 +543,13 @@ describe('HONG Contract Suite', function() {
       var fellow7Balance = t.asBigNumber(t.getWalletBalance(users.fellow7));
       var hongBalance = t.asBigNumber(t.getHongBalance());
 
+      var includedEther = 1;
       var expectedUserBalance = fellow7Balance.add(testAmount);
-      var expectedHongBalance = hongBalance.minus(testAmount);
+      var expectedHongBalance = hongBalance.minus(testAmount).plus(includedEther);
 
       t.validateTransactions([
-        function(){ return t.hong.mgmtInvestProject(users.fellow7, testAmount);},
-        function(){
+        function(){ return t.hong.mgmtInvestProject(users.fellow7, testAmount, {from: ownerAddress, value: includedEther});},
+        function(receipt){
           var actualUserBalance = t.asBigNumber(t.getWalletBalance(users.fellow7));
           var actualHongBalance = t.asBigNumber(t.getHongBalance());
           t.assertEqualB(expectedUserBalance, actualUserBalance, done, "expected user balance");
@@ -722,12 +722,11 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
 
-    // TODO allow test ether to be sent with a function to test it
     it ('does not allow mgmtBody to call mgmtDistribute before harvest is enabled', function(done) {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyHarvestEnabled");
       t.validateTransactions([
-        function() { return t.hong.mgmtDistribute({from: ownerAddress})},
+        function() { return t.hong.mgmtDistribute({from: ownerAddress, value: 1})},
         function() {
           t.assertEqualN(false, t.hong.isDistributionReady(), done, "distribution not ready");
         }
@@ -752,12 +751,11 @@ describe('HONG Contract Suite', function() {
         ], done);
     });
 
-    // TODO allow test ether to be sent with a function to test it
     it ('does not allow non-owner to call mgmtDistribute', function(done) {
       done = t.logEventsToConsole(done);
       done = t.assertEventIsFiredByName(t.hong.evRecord(), done, "onlyManagementBody");
       t.validateTransactions([
-        function() { return t.hong.mgmtDistribute({from: users.fellow2})},
+        function() { return t.hong.mgmtDistribute({from: users.fellow2, value: 1})},
         function() {
           t.assertEqual(false, t.hong.isDistributionReady(), done, "distribution not ready");
         }
@@ -774,17 +772,19 @@ describe('HONG Contract Suite', function() {
       var returnWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.returnWallet()));
       var rewardWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.rewardWallet()));
 
+      var mgmtAmountSent = 1;
       var totalFunds = returnWalletBalance
                         .plus(hongBalance)
                         .plus(extraBalance)
                         .plus(mgmtFeeWalletBalance)
-                        .plus(rewardWalletBalance);
+                        .plus(rewardWalletBalance)
+                        .plus(mgmtAmountSent);
 
       var mgmtRewardFraction = t.hong.mgmtRewardPercentage() / 100;
       var expectedMgmtReward = totalFunds.times(mgmtRewardFraction).floor();
       var expectedReturnWalletBalance = totalFunds.minus(expectedMgmtReward);
       t.validateTransactions([
-        function() { return t.hong.mgmtDistribute({from: ownerAddress})},
+        function() { return t.hong.mgmtDistribute({from: ownerAddress, value: mgmtAmountSent})},
         function() {
           var actualReturnWalletBalance = t.asBigNumber(t.getWalletBalance(t.hong.returnWallet()));
           t.assertEqual(true, t.hong.isDistributionReady(), done, "distribution ready");
