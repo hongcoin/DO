@@ -37,7 +37,7 @@ contract HongConfiguration {
     uint public mgmtRewardPercentage = 20;
     uint public mgmtFeePercentage = 8;
 
-    uint public harvestQuorumPercent = 50;
+    uint public harvestQuorumPercent = 20;
     uint public freezeQuorumPercent = 50;
     uint public kickoffQuorumPercent = 20;
 }
